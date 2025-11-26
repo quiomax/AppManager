@@ -1,0 +1,179 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.Dialog welcome_tour_dialog {
+  title: _("Hoşgeldin");
+  // content-height: 450;
+  content-width: 520;
+
+  [content]
+  Overlay {
+    Box {
+      orientation: vertical;
+
+      Adw.Carousel welcome_carousel {
+        name: "welcome_carousel";
+        vexpand: true;
+        allow-mouse-drag: true;
+        allow-long-swipes: true;
+
+        /* Slide 1 */
+        Adw.StatusPage {
+          hexpand: true;
+          vexpand: true;
+          margin-start: 12;
+          margin-end: 36;
+          icon-name: "computer-symbolic";
+          title: _("Cihazı Kabloyla Bağla");
+          description: _("USB hata ayıklamayı aç ve cihazı kablo ile bilgisayara bağla.\n\n<b>Ayarlar</b> -> <b>Telefon hakkında</b> -> <b>Derleme numarası</b>\n<i>5 defa dokun</i>.");
+        }
+
+        /* Slide 2 */
+        Adw.StatusPage {
+          hexpand: true;
+          vexpand: true;
+          margin-start: 12;
+          margin-end: 36;
+          icon-name: "edit-select-all-symbolic";
+          title: _("Uygulamaları Seç");
+          description: _("Kategorilere göz at, yönetmek istediğin uygulamaları işaretle.");
+        }
+
+        /* Slide 3 */
+        Adw.StatusPage {
+          hexpand: true;
+          vexpand: true;
+          margin-start: 12;
+          margin-end: 36;
+          icon-name: "dialog-information-symbolic";
+          title: _("Gözden Geçir");
+          description: _("İzinleri ve uygulama detaylarını gözden geçir.");
+        }
+
+        /* Slide 4 */
+        Adw.StatusPage {
+          hexpand: true;
+          vexpand: true;
+          margin-start: 12;
+          margin-end: 36;
+          icon-name: "edit-delete-symbolic";
+          title: _("Kaldır");
+          description: _("Seçili uygulamaları tek tıkla kaldır.");
+        }
+
+        /* Slide 5 */
+        Adw.StatusPage {
+          hexpand: true;
+          vexpand: true;
+          margin-start: 12;
+          margin-end: 36;
+          icon-name: "archive-symbolic";
+          title: _("Yedekle");
+          description: _("Seçili uygulamaları yedekle.");
+        }
+
+        /* Slide 6 */
+        Adw.StatusPage {
+          hexpand: true;
+          vexpand: true;
+          margin-start: 12;
+          margin-end: 36;
+          icon-name: "preferences-desktop-keyboard-shortcuts-symbolic";
+          title: _("Klavye Kısayolları");
+          description: _("<i>Ctrl+F</i> Ara, <i>Ctrl+A</i> Tümünü seç, <i>DELETE</i> Kaldır…");
+        }
+
+        /* Slide 7 */
+        Adw.StatusPage {
+          hexpand: true;
+          vexpand: true;
+          margin-start: 12;
+          margin-end: 36;
+          icon-name: "preferences-other-symbolic";
+          title: _("Temel ayarları yap");
+          description: _("Programın çalışabilmesi için gerekli olan yardımcıları ayarla.");
+
+          [child]
+          Button welcome_settings_btn {
+            label: _("Ayarlar");
+            tooltip-text: _("Ayarları açar");
+          }
+        }
+      }
+
+      /* Dots */
+      Adw.CarouselIndicatorDots {
+        carousel: welcome_carousel;
+        halign: center;
+        margin-top: 12;
+        margin-bottom: 12;
+      }
+    }
+
+    /* Overlay gezinme */
+
+    [overlay]
+    Button skip_btn {
+      name: "skip_btn";
+      valign: start;
+      halign: end;
+      margin-top: 12;
+      margin-end: 24;
+      label: _("Atla");
+      tooltip-text: _("Turu atla ve pencereyi kapat");
+
+      styles [
+        "osd",
+        "flat",
+      ]
+    }
+
+    [overlay]
+    Button prev_btn {
+      name: "prev_btn";
+      valign: center;
+      halign: start;
+      margin-start: 12;
+      icon-name: "go-previous-symbolic";
+      tooltip-text: _("Önceki");
+
+      styles [
+        "osd",
+        "circular",
+      ]
+    }
+
+    [overlay]
+    Button next_btn {
+      name: "next_btn";
+      valign: center;
+      halign: end;
+      margin-end: 24;
+      icon-name: "go-next-symbolic";
+      tooltip-text: _("Sonraki");
+
+      styles [
+        "osd",
+        "circular",
+        "suggested-action",
+      ]
+    }
+
+    [overlay]
+    Button finish_btn {
+      name: "finish_btn";
+      visible: false;
+      valign: center;
+      halign: end;
+      margin-end: 24;
+      icon-name: "object-select-symbolic";
+      tooltip-text: _("Bitir");
+
+      styles [
+        "osd",
+        "circular",
+        "suggested-action",
+      ]
+    }
+  }
+}

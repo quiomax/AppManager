@@ -1,0 +1,267 @@
+using Gtk 4.0;
+using Adw 1;
+
+Adw.PreferencesDialog preferences_window {
+  title: "Ayarlar";
+  search-enabled: true;
+  content-width: 600;
+  content-height: 500;
+
+  Adw.PreferencesPage {
+    title: "Genel";
+    icon-name: "preferences-system-symbolic";
+
+    Adw.PreferencesGroup {
+      title: "Görünüm";
+      description: "Arayüz görünüm ayarları";
+
+      Adw.ComboRow theme_row {
+        title: "Tema";
+        subtitle: "Uygulama temasını seçin";
+
+        model: Gtk.StringList {
+          strings [
+            "Sistem",
+            "Açık",
+            "Koyu",
+          ]
+        };
+      }
+
+      Adw.ComboRow scale_row {
+        title: "Arayüz Ölçekleme";
+        subtitle: "Tüm arayüz öğelerinin ölçekleme oranı";
+
+        model: Gtk.StringList {
+          strings [
+            "1x (Normal)",
+            "1.25x",
+            "1.5x",
+            "1.75x",
+            "2x",
+            "2.5x",
+            "3x",
+          ]
+        };
+      }
+
+      Adw.SwitchRow show_app_icons_row {
+        title: "Simgeleri Göster";
+        subtitle: "Uygulama listesinde simgeleri göster";
+        active: false;
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: "Uygulama Davranışı";
+      description: "Uygulamanın genel davranış ayarları";
+
+      Adw.ComboRow default_startup_tab_row {
+        title: "Varsayılan Başlangıç Sekmesi";
+        subtitle: "Uygulama başladığında gösterilecek sekme";
+
+        model: Gtk.StringList {
+          strings [
+            "Tümü",
+            "Güvenilen",
+            "Zararlı",
+            "Bilinmeyen",
+          ]
+        };
+      }
+
+      Adw.SwitchRow auto_refresh_row {
+        title: "Otomatik Yenileme";
+        subtitle: "Cihaz bağlandığında otomatik olarak uygulama listesini yenile";
+        active: true;
+      }
+
+      Adw.SwitchRow confirm_uninstall_row {
+        title: "Kaldırma Onayı";
+        subtitle: "Uygulamaları kaldırmadan önce onay iste";
+        active: true;
+      }
+
+      Adw.SwitchRow switch_to_malicious_row {
+        title: "Sekme Geçişi";
+        subtitle: "Liste yenilendiğinde zararlı uygulama varsa otomatik olarak Zararlı sekmesine geç";
+        active: false;
+      }
+
+      Adw.SwitchRow welcome_tour_show_row {
+        title: _("Hoş Geldin Turu");
+        subtitle: _("Açılışta Hoş Geldin Turu'nu yeniden göster");
+        active: false;
+      }
+    }
+  }
+
+  Adw.PreferencesPage {
+    title: "Araçlar";
+    name: "tools";
+    icon-name: "applications-utilities-symbolic";
+
+    Adw.PreferencesGroup {
+      title: "Android Araçları";
+      description: "Android geliştirme araçlarının dizin yolları";
+
+      Adw.ActionRow adb_path_row {
+        title: "ADB Dizin Yolu";
+        subtitle: "Android Debug Bridge aracının bulunduğu dizin";
+        activatable: true;
+
+        [suffix]
+        Gtk.Box {
+          orientation: horizontal;
+          spacing: 6;
+
+          Gtk.Entry adb_path_entry {
+            placeholder-text: "/usr/bin/adb";
+            hexpand: true;
+            valign: center;
+            width-chars: 20;
+          }
+
+          Gtk.Button adb_browse_button {
+            icon-name: "folder-open-symbolic";
+            tooltip-text: "Gözat";
+            valign: center;
+          }
+        }
+      }
+
+      Adw.ActionRow aapt2_path_row {
+        title: "AAPT2 Dizin Yolu";
+        subtitle: "Android Asset Packaging Tool 2 aracının bulunduğu dizin";
+        activatable: true;
+
+        [suffix]
+        Gtk.Box {
+          orientation: horizontal;
+          spacing: 6;
+
+          Gtk.Entry aapt2_path_entry {
+            placeholder-text: "/usr/bin/aapt2";
+            hexpand: true;
+            valign: center;
+            width-chars: 20;
+          }
+
+          Gtk.Button aapt2_browse_button {
+            icon-name: "folder-open-symbolic";
+            tooltip-text: "Gözat";
+            valign: center;
+          }
+        }
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: "Araç Durumu";
+      description: "Android araçlarının mevcut durumu";
+
+      Adw.ActionRow adb_status_row {
+        title: "ADB Durumu";
+        subtitle: "Android Debug Bridge bağlantı durumu";
+
+        [suffix]
+        Gtk.Box {
+          orientation: horizontal;
+          spacing: 6;
+
+          Gtk.Label adb_status_label {
+            label: "Kontrol ediliyor...";
+            valign: center;
+            wrap: true;
+            max-width-chars: 40;
+            ellipsize: end;
+          }
+
+          Gtk.Button adb_test_button {
+            label: "Test Et";
+            valign: center;
+          }
+        }
+      }
+
+      Adw.ActionRow aapt2_status_row {
+        title: "AAPT2 Durumu";
+        subtitle: "Android Asset Packaging Tool durumu";
+
+        [suffix]
+        Gtk.Box {
+          orientation: horizontal;
+          spacing: 6;
+
+          Gtk.Label aapt2_status_label {
+            label: "Kontrol ediliyor...";
+            valign: center;
+            wrap: true;
+            max-width-chars: 40;
+            ellipsize: end;
+          }
+
+          Gtk.Button aapt2_test_button {
+            label: "Test Et";
+            valign: center;
+          }
+        }
+      }
+    }
+  }
+
+  Adw.PreferencesPage {
+    title: "Gelişmiş";
+    icon-name: "applications-development-symbolic";
+
+    Adw.PreferencesGroup {
+      title: "Performans";
+      description: "Uygulama performans ayarları";
+
+      Adw.SpinRow cache_size_row {
+        title: "Önbellek Boyutu";
+        subtitle: "Uygulama simgeleri için önbellek boyutu (MB)";
+
+        adjustment: Gtk.Adjustment {
+          lower: 10;
+          upper: 500;
+          step-increment: 10;
+          value: 100;
+        };
+      }
+
+      Adw.ActionRow clear_cache_row {
+        title: "Önbelleği Temizle";
+        subtitle: "Tüm önbelleği temizle ve alan boşalt";
+        activatable: true;
+
+        [suffix]
+        Gtk.Button clear_cache_button {
+          label: "Temizle";
+          valign: center;
+        }
+      }
+    }
+
+    Adw.PreferencesGroup {
+      title: "Sıfırlama";
+      description: "Uygulama ayarlarını sıfırlama seçenekleri";
+
+      Adw.ActionRow reset_settings_row {
+        title: "Ayarları Sıfırla";
+        subtitle: "Tüm ayarları varsayılan değerlere döndür";
+        activatable: true;
+
+        [suffix]
+        Gtk.Button reset_settings_button {
+          label: "Sıfırla";
+          valign: center;
+
+          styles [
+            "destructive-action",
+          ]
+        }
+      }
+    }
+  }
+}
