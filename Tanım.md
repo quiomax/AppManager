@@ -92,21 +92,27 @@
 
 ## Uygulama Listesi `Gtk.ListBox`
 - Kullanıcı tarafından kurulmuş uygulamaları listeler `Gtk.ListBox`.
-- Liste satırı `Adw.ActionRow` solunda seçme kutusu `Gtk.CheckButton`, yanında uygulama simgesi `Gtk.Image`.
-- Simgenin yanında kalın harflerle uygulama adı `Gtk.Label`, alt satırda italik harflerle uygulama kimliği `Gtk.Label` bilgileri gösterilsin.
-- Satıra tıklandığında ilgili satırdaki seçme kutusu `Gtk.CheckButton` seçili hale gelsin.
-- Satıra iki defa tıklandığında ilgili uygulamanın bilgilerini gösteren `Adw.Dialog` açılsın.
-  - Dialog içinde uygulama simgesi, uygulama adı, uygulama kimliği, uygulama boyutu, uygulama versiyonu, uygulama yayıncısı, uygulama tarih bilgileri gösterilsin.
-  - Dialog'un alt kısmında uygulama kategorisi simgesiyle beraber gösterilsin.
-  - Kategori düğmesi aktif ve işevsel olsun, tıklandığında kategori değiştirme popup penceresi açılsın.
-  - Kategorinin yanında yedekleme yapma ve doğrudan kaldırma düğmeleri olsun.
-  - Dialog dışı bir yere tıklandığında dialog kapansın (modal davranış).
+- Liste satırı `Adw.ActionRow`, satır aralarına ince çizgi `Gtk.Separator` yer alsın. Soldan sağa sırayla:
+  - Seçme kutusu `Gtk.CheckButton`
+  - Kategori değiştirme düğmesi `Gtk.MenuButton`
+    - Tıklandığında mevcut kategori dışındaki kategorileri(Zararlı, Güvenli, Bilinmeyen) listeleyen bir popup menü açılır. Kullanıcı bir kategori seçtiğinde uygulama anında o kategoriye taşınır ve ilgili sekmelerde güncellenir.
+  - Uygulama simgesi `Gtk.Image`, simge bulunamazsa yer tutucu simge `AndroidHead.svg` gösterilsin.
+  - Uygulama adı `Gtk.Label` kalın harflerle.
+  - Adın altında uygulama kimliği `Gtk.Label` italik harflerle.
+  - Satırın sonunda uygulama detaylarını açmak için bir bilgi düğmesi `Gtk.Button`.
+    - Bilgi düğmesi `Gtk.Button`, tıklandığında ilgili uygulamanın bilgilerini gösteren `Adw.Dialog` açılsın.
+    - Dialog'un üst kısmında uygulama simgesi, altında uygulama adı, uygulama kimliği, uygulama boyutu, uygulama versiyonu, uygulama yayıncısı, uygulama tarih bilgileri gösterilsin.
+    - Dialog'un alt kısmında uygulama kategorisi simgesiyle beraber gösterilsin.
+    - Kategori düğmesi aktif ve işevsel olsun, tıklandığında kategori değiştirme popup penceresi açılsın.
+    - Dialog'un alt kısmında yedekleme yapma ve doğrudan kaldırma düğmeleri olsun.
+    - Dialog dışı bir yere tıklandığında dialog kapansın (modal davranış).
+- Boş liste durumu: Eğer bir kategoride hiç uygulama yoksa, `Adw.StatusPage` ile uygun mesaj gösterilsin.
 
 ## Simge Yönetimi `Gtk.Image`
 - Uygulama simgeleri öncelikle yerel simge dizininde aransın, yoksa adb üzerinden çekilen apk içinden ayıklansın.
-- Simge dosyaları "uygulamakimliği.xxx" formatında saklanacak.
+- Simge dosyaları "UygulamaKimliği.png" formatında saklanacak.
 - Program Simgeleri:
-  - Uygulamanın kendi simgeleri ve yer tutucu simge `android_placeholder.png` programın kurulu olduğu dizindeki `icons/` klasöründe bulunur.
+  - Uygulamanın kendi simgeleri `%programfiles%/Muha/AppManager/icons/` klasöründe bulunur.
 - APK Simgeleri (Önbellek):
   - Çekilen APK simgeleri kullanıcı veri dizininde saklanır:
     - Windows: `%appdata%/Local/Muha/AppManager/cache/icons`

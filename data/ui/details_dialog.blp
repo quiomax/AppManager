@@ -1,0 +1,80 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $AppDetailsDialog : Adw.Dialog {
+  title: "Uygulama Detayları";
+  content-width: 400;
+  content-height: 500;
+
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {}
+
+    content: Gtk.Box {
+      orientation: vertical;
+      spacing: 12;
+      margin-top: 12;
+      margin-bottom: 12;
+      margin-start: 12;
+      margin-end: 12;
+
+      Gtk.Image app_icon {
+        pixel-size: 64;
+        icon-name: "application-x-executable-symbolic";
+        halign: center;
+      }
+
+      Gtk.Label app_name {
+        label: "Uygulama Adı";
+        styles ["title-2"]
+        halign: center;
+        wrap: true;
+        justify: center;
+      }
+
+      Gtk.Label package_name {
+        label: "com.example.app";
+        styles ["caption"]
+        halign: center;
+        selectable: true;
+      }
+
+      Adw.PreferencesGroup {
+        Adw.ActionRow app_version {
+          title: "Versiyon";
+          subtitle: "-";
+        }
+        Adw.ActionRow app_size {
+          title: "Boyut";
+          subtitle: "-";
+        }
+        Adw.ActionRow app_uid {
+          title: "UID";
+          subtitle: "-";
+        }
+        Adw.ActionRow install_date {
+          title: "Yükleme Tarihi";
+          subtitle: "-";
+        }
+      }
+
+      Gtk.Box {
+        orientation: horizontal;
+        spacing: 12;
+        halign: center;
+        margin-top: 12;
+
+        Gtk.Button backup_button {
+          label: "Yedekle";
+          icon-name: "document-save-symbolic";
+        }
+
+        Gtk.Button uninstall_button {
+          label: "Kaldır";
+          icon-name: "user-trash-symbolic";
+          styles ["destructive-action"]
+        }
+      }
+    };
+  };
+}
