@@ -555,7 +555,7 @@ on_category_changed (GSimpleAction *action G_GNUC_UNUSED,
       gtk_widget_add_controller (GTK_WIDGET (new_row), GTK_EVENT_CONTROLLER (right_click));
 
       /* Uygulama Simgesi (Yer tutucu) */
-      GtkWidget *icon = gtk_image_new_from_icon_name ("application-x-executable-symbolic");
+      GtkWidget *icon = gtk_image_new_from_resource ("/com/muha/AppManager/icons/AndroidHead.svg");
       gtk_image_set_pixel_size (GTK_IMAGE (icon), 32);
       adw_action_row_add_prefix (new_row, icon);
 
@@ -745,7 +745,7 @@ load_applications (MainWindow *self, const gchar *serial)
           gtk_widget_add_controller (GTK_WIDGET (row), GTK_EVENT_CONTROLLER (right_click));
 
           /* 3. Uygulama Simgesi (Yer tutucu) */
-          GtkWidget *icon = gtk_image_new_from_icon_name ("application-x-executable-symbolic");
+          GtkWidget *icon = gtk_image_new_from_resource ("/com/muha/AppManager/icons/AndroidHead.svg");
           gtk_image_set_pixel_size (GTK_IMAGE (icon), 32);
           adw_action_row_add_prefix (row, icon);
 

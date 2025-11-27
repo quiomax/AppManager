@@ -3,5 +3,6 @@
   <gresource prefix="/com/muha/AppManager">
     <file preprocess="xml-stripblanks">ui/window.ui</file>
     <file preprocess="xml-stripblanks">ui/details_dialog.ui</file>
+    <file>icons/AndroidHead.svg</file>
   </gresource>
 </gresources>
