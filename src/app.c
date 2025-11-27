@@ -17,6 +17,10 @@ app_info_finalize (GObject *object)
   AppInfo *self = APP_INFO (object);
   g_free (self->package_name);
   g_free (self->label);
+  g_free (self->version);
+  g_free (self->size);
+  g_free (self->uid);
+  g_free (self->install_date);
   G_OBJECT_CLASS (app_info_parent_class)->finalize (object);
 }
 
@@ -97,22 +101,22 @@ app_info_class_init (AppInfoClass *klass)
 static void
 app_info_init (AppInfo *self)
 {
+  self->type = APP_TYPE_UNKNOWN;
   self->category = APP_CATEGORY_UNKNOWN;
+  self->is_selected = FALSE;
 }
 
 AppInfo *
-app_info_new (const gchar *package_name, AppType type)
+app_info_new (const gchar *package_name,
+              AppType      type)
 {
-  AppInfo *self = g_object_new (APP_TYPE_INFO,
-                                "package-name", package_name,
-                                "app-type", type,
-                                NULL);
+  AppInfo *self = g_object_new (APP_TYPE_INFO, NULL);
 
-  /* Label'ı oluştur */
-  self->label = utils_get_app_name (package_name);
+  self->package_name = g_strdup (package_name);
+  self->type = type;
 
-  /* Kategoriyi belirle */
-  self->category = utils_get_app_category (package_name);
+  /* Varsayılan label paket adı olsun */
+  self->label = g_strdup (package_name);
 
   return self;
 }
@@ -146,8 +150,73 @@ app_info_get_category (AppInfo *self)
 }
 
 void
-app_info_set_category (AppInfo *self, AppCategory category)
+app_info_set_category (AppInfo    *self,
+                       AppCategory category)
 {
   g_return_if_fail (APP_IS_INFO (self));
   self->category = category;
+}
+
+const gchar *
+app_info_get_version (AppInfo *self)
+{
+  g_return_val_if_fail (APP_IS_INFO (self), NULL);
+  return self->version;
+}
+
+void
+app_info_set_version (AppInfo     *self,
+                      const gchar *version)
+{
+  g_return_if_fail (APP_IS_INFO (self));
+  g_free (self->version);
+  self->version = g_strdup (version);
+}
+
+const gchar *
+app_info_get_size (AppInfo *self)
+{
+  g_return_val_if_fail (APP_IS_INFO (self), NULL);
+  return self->size;
+}
+
+void
+app_info_set_size (AppInfo     *self,
+                   const gchar *size)
+{
+  g_return_if_fail (APP_IS_INFO (self));
+  g_free (self->size);
+  self->size = g_strdup (size);
+}
+
+const gchar *
+app_info_get_uid (AppInfo *self)
+{
+  g_return_val_if_fail (APP_IS_INFO (self), NULL);
+  return self->uid;
+}
+
+void
+app_info_set_uid (AppInfo     *self,
+                  const gchar *uid)
+{
+  g_return_if_fail (APP_IS_INFO (self));
+  g_free (self->uid);
+  self->uid = g_strdup (uid);
+}
+
+const gchar *
+app_info_get_install_date (AppInfo *self)
+{
+  g_return_val_if_fail (APP_IS_INFO (self), NULL);
+  return self->install_date;
+}
+
+void
+app_info_set_install_date (AppInfo     *self,
+                           const gchar *install_date)
+{
+  g_return_if_fail (APP_IS_INFO (self));
+  g_free (self->install_date);
+  self->install_date = g_strdup (install_date);
 }

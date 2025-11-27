@@ -64,6 +64,23 @@ template $AppDetailsDialog : Adw.Dialog {
         halign: center;
         margin-top: 12;
 
+        Gtk.Label {
+            label: "Kategori:";
+            styles ["heading"]
+        }
+
+        Gtk.Label category_label {
+            label: "Bilinmeyen";
+            styles ["body"]
+        }
+      }
+
+      Gtk.Box {
+        orientation: horizontal;
+        spacing: 12;
+        halign: center;
+        margin-top: 12;
+
         Gtk.Button backup_button {
           label: "Yedekle";
           icon-name: "document-save-symbolic";

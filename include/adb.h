@@ -55,4 +55,16 @@ GList *adb_get_devices (GError **error);
  */
 GList *adb_get_packages (const gchar *serial, const gchar *flags, AppType type, GError **error);
 
+/**
+ * adb_get_package_details:
+ * @serial: Cihaz seri numarası
+ * @app: Detayları alınacak AppInfo nesnesi
+ * @error: Hata dönüşü için
+ *
+ * Belirtilen cihazdaki bir paketin detaylarını alır.
+ *
+ * Returns: Başarılı olursa TRUE, aksi halde FALSE.
+ */
+gboolean adb_get_package_details (const gchar *serial, AppInfo *app, GError **error);
+
 G_END_DECLS

@@ -25,6 +25,76 @@ get_adb_path (void)
 }
 
 gboolean
+adb_get_package_details (const gchar  *serial,
+                         AppInfo      *app,
+                         GError      **error)
+{
+  g_autoptr(GSubprocess) proc = NULL;
+  GInputStream *stdout_stream = NULL;
+  g_autoptr(GDataInputStream) data_stream = NULL;
+  g_autofree gchar *adb_path = get_adb_path ();
+  const gchar *package_name = app_info_get_package_name (app);
+  GError *local_error = NULL;
+  gchar *line = NULL;
+
+  if (!adb_path)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "ADB bulunamadı");
+      return FALSE;
+    }
+
+  /* dumpsys package <package_name> komutunu çalıştır */
+  proc = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE,
+                           &local_error,
+                           adb_path, "-s", serial, "shell", "dumpsys", "package", package_name,
+                           NULL);
+
+  if (local_error)
+    {
+      g_propagate_error (error, local_error);
+      return FALSE;
+    }
+
+  stdout_stream = g_subprocess_get_stdout_pipe (proc);
+  data_stream = g_data_input_stream_new (stdout_stream);
+
+  while ((line = g_data_input_stream_read_line_utf8 (data_stream, NULL, NULL, NULL)) != NULL)
+    {
+      gchar *trimmed = g_strstrip (line);
+
+      // g_debug ("Dumpsys line: %s", trimmed); /* Çok fazla log üretebilir ama gerekirse açarız */
+
+      if (g_str_has_prefix (trimmed, "versionName="))
+        {
+          app_info_set_version (app, trimmed + 12);
+          g_debug ("Version found: %s", trimmed + 12);
+        }
+      else if (g_str_has_prefix (trimmed, "userId="))
+        {
+          app_info_set_uid (app, trimmed + 7);
+          g_debug ("UID found (userId): %s", trimmed + 7);
+        }
+      else if (g_str_has_prefix (trimmed, "appId=") && app_info_get_uid (app) == NULL)
+        {
+          app_info_set_uid (app, trimmed + 6);
+          g_debug ("UID found (appId): %s", trimmed + 6);
+        }
+      else if (g_str_has_prefix (trimmed, "firstInstallTime="))
+        {
+          app_info_set_install_date (app, trimmed + 17);
+          g_debug ("Install date found: %s", trimmed + 17);
+        }
+
+      g_free (line);
+    }
+
+  /* Boyut bilgisi için ayrı bir komut çalıştırmak gerekebilir ama şimdilik "-" kalsın */
+  app_info_set_size (app, "Hesaplanıyor...");
+
+  return TRUE;
+}
+
+gboolean
 adb_check_presence (void)
 {
   g_autofree gchar *path = get_adb_path ();

@@ -23,10 +23,14 @@ typedef enum {
 struct _AppInfo {
   GObject parent_instance;
   gchar *package_name;
-  gchar *label; /* Uygulama adı (daha sonra alınacak) */
+  gchar *label;
   AppType type;
   AppCategory category;
   gboolean is_selected;
+  gchar *version;
+  gchar *size;
+  gchar *uid;
+  gchar *install_date;
 };
 
 AppInfo *app_info_new (const gchar *package_name, AppType type);
@@ -36,5 +40,17 @@ const gchar *app_info_get_label (AppInfo *self);
 AppType app_info_get_app_type (AppInfo *self);
 AppCategory app_info_get_category (AppInfo *self);
 void app_info_set_category (AppInfo *self, AppCategory category);
+
+const gchar *app_info_get_version (AppInfo *self);
+void app_info_set_version (AppInfo *self, const gchar *version);
+
+const gchar *app_info_get_size (AppInfo *self);
+void app_info_set_size (AppInfo *self, const gchar *size);
+
+const gchar *app_info_get_uid (AppInfo *self);
+void app_info_set_uid (AppInfo *self, const gchar *uid);
+
+const gchar *app_info_get_install_date (AppInfo *self);
+void app_info_set_install_date (AppInfo *self, const gchar *install_date);
 
 G_END_DECLS

@@ -1,6 +1,8 @@
 #include <string.h>
 #include "window.h"
 #include "utils.h"
+#include "adb.h"
+#include "app.h"
 
 /* AppDetailsDialog Tanımları */
 #define APP_TYPE_DETAILS_DIALOG (app_details_dialog_get_type ())
@@ -19,16 +21,32 @@ struct _AppDetailsDialog
   AdwActionRow *install_date;
   GtkButton *uninstall_button;
   GtkButton *backup_button;
+  GtkLabel *category_label;
 
   AppInfo *app_info;
+  gchar *serial; /* Cihaz seri numarası */
 };
 
 G_DEFINE_FINAL_TYPE (AppDetailsDialog, app_details_dialog, ADW_TYPE_DIALOG)
 
 static void
+app_details_dialog_finalize (GObject *object)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (object);
+
+  g_clear_object (&self->app_info);
+  g_free (self->serial);
+
+  G_OBJECT_CLASS (app_details_dialog_parent_class)->finalize (object);
+}
+
+static void
 app_details_dialog_class_init (AppDetailsDialogClass *klass)
 {
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
+
+  object_class->finalize = app_details_dialog_finalize;
 
   gtk_widget_class_set_template_from_resource (widget_class, "/com/muha/AppManager/ui/details_dialog.ui");
 
@@ -41,6 +59,7 @@ app_details_dialog_class_init (AppDetailsDialogClass *klass)
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, install_date);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, uninstall_button);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, backup_button);
+  gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, category_label);
 }
 
 static void
@@ -49,18 +68,59 @@ app_details_dialog_init (AppDetailsDialog *self)
   gtk_widget_init_template (GTK_WIDGET (self));
 }
 
+
+
 static AppDetailsDialog *
-app_details_dialog_new (AppInfo *app)
+app_details_dialog_new (AppInfo *app, const gchar *serial)
 {
   AppDetailsDialog *self = g_object_new (APP_TYPE_DETAILS_DIALOG, NULL);
   self->app_info = g_object_ref (app);
+  self->serial = g_strdup (serial);
+
+  /* Widget Kontrolleri */
+  if (!self->app_name || !self->package_name || !self->app_version ||
+      !self->app_size || !self->app_uid || !self->install_date || !self->category_label)
+    {
+      g_print ("app_details_dialog_new: CRITICAL: One or more template children are NULL!\n");
+      // return self; // Yine de döndür, belki çalışır veya hatayı görürüz
+    }
 
   gtk_label_set_text (self->app_name, app_info_get_label (app));
   gtk_label_set_text (self->package_name, app_info_get_package_name (app));
 
-  /* Diğer bilgileri doldur (şimdilik placeholder) */
-  // adw_preferences_row_set_subtitle (ADW_PREFERENCES_ROW (self->app_version), "1.0.0");
+  /* Detayları ADB'den çek */
+  g_debug ("app_details_dialog_new: Fetching details for %s", app_info_get_package_name (app));
+  GError *error = NULL;
+  if (adb_get_package_details (serial, app, &error))
+    {
+      g_debug ("app_details_dialog_new: Details fetched successfully");
+      adw_action_row_set_subtitle (self->app_version, app_info_get_version (app) ? app_info_get_version (app) : "-");
+      adw_action_row_set_subtitle (self->app_size, app_info_get_size (app) ? app_info_get_size (app) : "-");
+      adw_action_row_set_subtitle (self->app_uid, app_info_get_uid (app) ? app_info_get_uid (app) : "-");
+      adw_action_row_set_subtitle (self->install_date, app_info_get_install_date (app) ? app_info_get_install_date (app) : "-");
+    }
+  else
+    {
+      g_warning ("Detaylar alınamadı: %s", error->message);
+      g_clear_error (&error);
+    }
 
+  /* Kategori Etiketi Ayarları */
+  if (self->category_label == NULL)
+    {
+      g_warning ("app_details_dialog_new: category_label is NULL! Template binding failed?");
+    }
+  else
+    {
+      AppCategory category = app_info_get_category (app);
+      const gchar *cat_label = "Bilinmeyen";
+      if (category == APP_CATEGORY_MALICIOUS) cat_label = "Zararlı";
+      else if (category == APP_CATEGORY_SAFE) cat_label = "Güvenli";
+
+      gtk_label_set_text (self->category_label, cat_label);
+    }
+
+  g_debug ("app_details_dialog_new: Dialog created successfully");
   return self;
 }
 
@@ -121,12 +181,6 @@ main_window_class_init (MainWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, MainWindow, total_label);
 }
 
-#include "adb.h"
-#include "app.h"
-
-#include "adb.h"
-#include "app.h"
-
 static void on_device_selected (GtkDropDown *dropdown, GParamSpec *pspec, gpointer user_data);
 
 static void
@@ -134,13 +188,67 @@ on_details_clicked (GtkButton *btn G_GNUC_UNUSED,
                     gpointer   user_data)
 {
   AdwActionRow *row = ADW_ACTION_ROW (user_data);
-  AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
   MainWindow *self = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (row), MAIN_TYPE_WINDOW));
+  AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
 
-  if (app && self)
+  if (!app || !self)
     {
-      AppDetailsDialog *dialog = app_details_dialog_new (app);
+      g_warning ("on_details_clicked: app veya self NULL");
+      return;
+    }
+
+  g_debug ("on_details_clicked: Row clicked for app %s", app_info_get_package_name (app));
+
+  /* Serial'ı bul */
+  /* Not: Serial'ı MainWindow'da saklamak daha iyi olurdu ama şimdilik dropdown'dan tekrar parse edelim veya
+     load_applications çağrıldığında saklanan bir serial değişkeni kullanalım.
+     MainWindow yapısına 'current_serial' eklemek en temizidir ama şimdilik dropdown'dan alalım. */
+
+  /* Dropdown'dan serial alma mantığı on_device_selected içinde var, bunu bir helper yapabiliriz.
+     Veya on_device_selected çalıştığında serial'ı self->current_serial'a kaydedebiliriz.
+     Şimdilik hızlı çözüm: Dropdown modelinden al. */
+
+  GtkStringList *model = GTK_STRING_LIST (gtk_drop_down_get_model (self->device_dropdown));
+  if (!model)
+    {
+      g_warning ("on_details_clicked: Model NULL");
+      return;
+    }
+
+  guint selected_index = gtk_drop_down_get_selected (self->device_dropdown);
+  const gchar *selected_string = gtk_string_list_get_string (model, selected_index);
+  gchar *serial = NULL;
+
+  if (selected_string)
+    {
+       /* Basit parse: "Model (Serial)" */
+       gchar *temp_string = g_strdup (selected_string);
+       char *open_paren = strrchr (temp_string, '(');
+       char *close_paren = strrchr (temp_string, ')');
+
+       if (open_paren && close_paren && close_paren > open_paren)
+         {
+            *close_paren = '\0';
+            serial = g_strdup (open_paren + 1);
+         }
+       g_free (temp_string);
+    }
+
+  if (serial)
+    {
+      g_debug ("on_details_clicked: Serial found: %s", serial);
+      AppDetailsDialog *dialog = app_details_dialog_new (app, serial);
+      g_debug ("on_details_clicked: Dialog created");
       adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (self));
+
+      /* Dialog kapandığında listeyi yenilemek gerekebilir eğer kategori değiştiyse.
+         Şimdilik basit bırakalım. */
+
+      g_free (serial);
+    }
+  else
+    {
+      g_warning ("on_details_clicked: Serial not found");
     }
 }
 
