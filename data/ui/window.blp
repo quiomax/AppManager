@@ -60,6 +60,19 @@ template $MainWindow : Adw.ApplicationWindow {
 
     content: Gtk.Stack main_stack {
         Gtk.StackPage {
+            name: "loading";
+            child: Adw.StatusPage {
+                title: "Cihaz Aranıyor...";
+                child: Gtk.Spinner {
+                    spinning: true;
+                    halign: center;
+                    width-request: 32;
+                    height-request: 32;
+                };
+            };
+        }
+
+        Gtk.StackPage {
             name: "no-device";
             child: Adw.StatusPage {
                 icon-name: "phone-symbolic";
@@ -99,6 +112,18 @@ template $MainWindow : Adw.ApplicationWindow {
 
                 Gtk.Stack content_stack {
                     vexpand: true;
+                    Gtk.StackPage {
+                        name: "loading";
+                        child: Adw.StatusPage {
+                            title: "Uygulamalar Yükleniyor...";
+                            child: Gtk.Spinner {
+                                spinning: true;
+                                halign: center;
+                                width-request: 32;
+                                height-request: 32;
+                            };
+                        };
+                    }
                     Gtk.StackPage {
                         name: "unknown";
                         title: "Bilinmeyen";

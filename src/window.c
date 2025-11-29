@@ -22,6 +22,7 @@ struct _AppDetailsDialog
   GtkButton *uninstall_button;
   GtkButton *backup_button;
   GtkLabel *category_label;
+  GtkStack *content_stack;
 
   AppInfo *app_info;
   gchar *serial; /* Cihaz seri numarası */
@@ -60,6 +61,7 @@ app_details_dialog_class_init (AppDetailsDialogClass *klass)
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, uninstall_button);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, backup_button);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, category_label);
+  gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, content_stack);
 }
 
 static void
@@ -69,6 +71,47 @@ app_details_dialog_init (AppDetailsDialog *self)
 }
 
 
+
+static void
+on_details_loaded (GObject      *source_object G_GNUC_UNUSED,
+                   GAsyncResult *result,
+                   gpointer      user_data)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (user_data);
+  GError *error = NULL;
+  AdbPackageDetails *details;
+
+  details = adb_get_package_details_finish (result, &error);
+
+  if (error)
+    {
+      g_warning ("Detaylar alınamadı: %s", error->message);
+      g_clear_error (&error);
+    }
+  else
+    {
+      /* AppInfo güncelle */
+      if (details->version) app_info_set_version (self->app_info, details->version);
+      if (details->size) app_info_set_size (self->app_info, details->size);
+      if (details->uid) app_info_set_uid (self->app_info, details->uid);
+      if (details->install_date) app_info_set_install_date (self->app_info, details->install_date);
+
+      /* UI güncelle */
+      adw_action_row_set_subtitle (self->app_version, app_info_get_version (self->app_info) ? app_info_get_version (self->app_info) : "-");
+      adw_action_row_set_subtitle (self->app_size, app_info_get_size (self->app_info) ? app_info_get_size (self->app_info) : "-");
+      adw_action_row_set_subtitle (self->app_uid, app_info_get_uid (self->app_info) ? app_info_get_uid (self->app_info) : "-");
+      adw_action_row_set_subtitle (self->install_date, app_info_get_install_date (self->app_info) ? app_info_get_install_date (self->app_info) : "-");
+
+      adb_package_details_free (details);
+    }
+
+  /* Yükleme bitti, detayları göster */
+  if (self->content_stack)
+    gtk_stack_set_visible_child_name (self->content_stack, "details");
+
+  /* Dialog referansını bırak (callback user_data) */
+  g_object_unref (self);
+}
 
 static AppDetailsDialog *
 app_details_dialog_new (AppInfo *app, const gchar *serial)
@@ -81,29 +124,21 @@ app_details_dialog_new (AppInfo *app, const gchar *serial)
   if (!self->app_name || !self->package_name || !self->app_version ||
       !self->app_size || !self->app_uid || !self->install_date || !self->category_label)
     {
-      g_print ("app_details_dialog_new: CRITICAL: One or more template children are NULL!\n");
-      // return self; // Yine de döndür, belki çalışır veya hatayı görürüz
+      g_warning ("app_details_dialog_new: CRITICAL: One or more template children are NULL!");
     }
 
   gtk_label_set_text (self->app_name, app_info_get_label (app));
   gtk_label_set_text (self->package_name, app_info_get_package_name (app));
 
-  /* Detayları ADB'den çek */
-  g_debug ("app_details_dialog_new: Fetching details for %s", app_info_get_package_name (app));
-  GError *error = NULL;
-  if (adb_get_package_details (serial, app, &error))
-    {
-      g_debug ("app_details_dialog_new: Details fetched successfully");
-      adw_action_row_set_subtitle (self->app_version, app_info_get_version (app) ? app_info_get_version (app) : "-");
-      adw_action_row_set_subtitle (self->app_size, app_info_get_size (app) ? app_info_get_size (app) : "-");
-      adw_action_row_set_subtitle (self->app_uid, app_info_get_uid (app) ? app_info_get_uid (app) : "-");
-      adw_action_row_set_subtitle (self->install_date, app_info_get_install_date (app) ? app_info_get_install_date (app) : "-");
-    }
-  else
-    {
-      g_warning ("Detaylar alınamadı: %s", error->message);
-      g_clear_error (&error);
-    }
+  /* Yükleme ekranını göster */
+  if (self->content_stack)
+    gtk_stack_set_visible_child_name (self->content_stack, "loading");
+
+  /* Detayları ADB'den çek (Asenkron) */
+
+  /* Dialog'un yaşam döngüsünü korumak için ref alıyoruz, callback'te unref yapacağız */
+  g_object_ref (self);
+  adb_get_package_details_async (serial, app_info_get_package_name (app), NULL, on_details_loaded, self);
 
   /* Kategori Etiketi Ayarları */
   if (self->category_label == NULL)
@@ -120,7 +155,6 @@ app_details_dialog_new (AppInfo *app, const gchar *serial)
       gtk_label_set_text (self->category_label, cat_label);
     }
 
-  g_debug ("app_details_dialog_new: Dialog created successfully");
   return self;
 }
 
@@ -238,7 +272,6 @@ on_details_clicked (GtkButton *btn G_GNUC_UNUSED,
     {
       g_debug ("on_details_clicked: Serial found: %s", serial);
       AppDetailsDialog *dialog = app_details_dialog_new (app, serial);
-      g_debug ("on_details_clicked: Dialog created");
       adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (self));
 
       /* Dialog kapandığında listeyi yenilemek gerekebilir eğer kategori değiştiyse.
@@ -253,16 +286,19 @@ on_details_clicked (GtkButton *btn G_GNUC_UNUSED,
 }
 
 static void
-refresh_devices (MainWindow *self)
+on_devices_loaded (GObject      *source_object G_GNUC_UNUSED,
+                   GAsyncResult *result,
+                   gpointer      user_data)
 {
+  MainWindow *self = MAIN_WINDOW (user_data);
   GList *devices;
   GError *error = NULL;
   GtkStringList *string_list;
 
+  devices = adb_get_devices_finish (result, &error);
+
   /* Mevcut listeyi temizle (basitçe yeni liste oluşturarak) */
   string_list = gtk_string_list_new (NULL);
-
-  devices = adb_get_devices (&error);
 
   if (error)
     {
@@ -272,14 +308,14 @@ refresh_devices (MainWindow *self)
       /* TODO: Hata mesajını arayüzde göster */
       gtk_drop_down_set_model (self->device_dropdown, NULL);
       gtk_widget_set_sensitive (GTK_WIDGET (self->device_dropdown), FALSE);
-      g_object_unref (string_list); /* Leak fix */
+      g_object_unref (string_list);
     }
   else if (devices == NULL)
     {
       gtk_stack_set_visible_child_name (self->main_stack, "no-device");
       gtk_drop_down_set_model (self->device_dropdown, NULL);
       gtk_widget_set_sensitive (GTK_WIDGET (self->device_dropdown), FALSE);
-      g_object_unref (string_list); /* Leak fix */
+      g_object_unref (string_list);
     }
   else
     {
@@ -300,6 +336,8 @@ refresh_devices (MainWindow *self)
           g_free (label);
           n_devices++;
         }
+      /* AdbDevice yapılarını ve listeyi temizle */
+      /* Not: adb_device_free fonksiyonu adb.h'da tanımlı */
       g_list_free_full (devices, (GDestroyNotify) adb_device_free);
 
       if (n_devices > 0)
@@ -318,11 +356,14 @@ refresh_devices (MainWindow *self)
           gtk_stack_set_visible_child_name (self->main_stack, "no-device");
         }
 
-      /* gtk_drop_down_set_model modelin sahipliğini almaz, ancak biz string_list'i
-         burada oluşturduk. GtkDropDown kendi referansını tutar.
-         Bizim referansımızı serbest bırakmamız gerekir. */
       g_object_unref (string_list);
     }
+}
+
+static void
+refresh_devices (MainWindow *self)
+{
+  adb_get_devices_async (NULL, on_devices_loaded, self);
 }
 
 static void
@@ -610,50 +651,9 @@ on_app_toggled (GtkCheckButton *check,
 }
 
 static void
-load_applications (MainWindow *self, const gchar *serial)
+populate_app_list (MainWindow *self, GList *packages)
 {
-  /* Listelere activate sinyali bağla (eğer daha önce bağlanmadıysa) */
-  /* Not: Her load çağrısında tekrar bağlamamak için init'te yapmak daha doğru ama
-     burada listeler temizlenip yeniden dolduruluyor, sinyal listbox'a bağlı olduğu için sorun yok.
-     Ancak sinyali init fonksiyonunda bağlamak en iyisi. */
-  GList *packages = NULL;
-  GError *error = NULL;
   GList *l;
-
-  /* Tüm listeleri temizle */
-  GtkWidget *child;
-  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->all_list))))
-    gtk_list_box_remove (self->all_list, child);
-  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->unknown_list))))
-    gtk_list_box_remove (self->unknown_list, child);
-  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->malicious_list))))
-    gtk_list_box_remove (self->malicious_list, child);
-  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->safe_list))))
-    gtk_list_box_remove (self->safe_list, child);
-
-  /* 1. Kullanıcı Uygulamaları (-3) */
-  GList *user_apps = adb_get_packages (serial, "-3", APP_TYPE_USER, &error);
-  if (error)
-    {
-      g_warning ("Kullanıcı uygulamaları alınamadı: %s", error->message);
-      g_clear_error (&error);
-    }
-  else
-    {
-      packages = g_list_concat (packages, user_apps);
-    }
-
-  /* 2. Sistem Uygulamaları (-s) */
-  GList *system_apps = adb_get_packages (serial, "-s", APP_TYPE_SYSTEM, &error);
-  if (error)
-    {
-      g_warning ("Sistem uygulamaları alınamadı: %s", error->message);
-      g_clear_error (&error);
-    }
-  else
-    {
-      packages = g_list_concat (packages, system_apps);
-    }
 
   /* Listeyi doldur */
   for (l = packages; l != NULL; l = l->next)
@@ -770,14 +770,11 @@ load_applications (MainWindow *self, const gchar *serial)
         }
     }
 
-  /* packages listesindeki her AppInfo için bir referans tuttuk (g_object_ref),
-     bu yüzden listeyi temizlerken unref yapmalıyız */
-  g_list_free_full (packages, g_object_unref);
-
   /* Boş liste kontrolü - stack'leri güncelle */
   gboolean has_unknown = FALSE;
   gboolean has_malicious = FALSE;
   gboolean has_safe = FALSE;
+  GtkWidget *child;
 
   child = gtk_widget_get_first_child (GTK_WIDGET (self->unknown_list));
   has_unknown = (child != NULL);
@@ -793,6 +790,143 @@ load_applications (MainWindow *self, const gchar *serial)
   gtk_stack_set_visible_child_name (self->safe_stack, has_safe ? "list" : "empty");
 
   update_selection_status (self);
+}
+
+typedef struct {
+  MainWindow *self;
+  gchar *serial;
+  GList *user_apps; /* AppInfo listesi */
+  gchar *previous_stack_child; /* Yükleme öncesi content_stack'in görünür çocuğu */
+} LoadAppsData;
+
+static void
+load_apps_data_free (LoadAppsData *data)
+{
+  g_free (data->serial);
+  g_free (data->previous_stack_child);
+  /* user_apps listesindeki AppInfo'lar populate_app_list'te ref alındı veya
+     burada unref edilmeli. Ancak biz listeyi birleştirip topluca işleyeceğiz. */
+  if (data->user_apps)
+    g_list_free_full (data->user_apps, g_object_unref);
+  g_free (data);
+}
+
+static void
+on_system_packages_loaded (GObject      *source_object G_GNUC_UNUSED,
+                           GAsyncResult *result,
+                           gpointer      user_data)
+{
+  LoadAppsData *data = user_data;
+  MainWindow *self = data->self;
+  GError *error = NULL;
+  GList *pkg_names = NULL;
+  GList *system_apps = NULL;
+  GList *all_apps = NULL;
+  GList *l;
+
+  pkg_names = adb_get_packages_finish (result, &error);
+
+  if (error)
+    {
+      g_warning ("Sistem uygulamaları alınamadı: %s", error->message);
+      g_clear_error (&error);
+    }
+  else
+    {
+      /* String listesini AppInfo listesine çevir */
+      for (l = pkg_names; l != NULL; l = l->next)
+        {
+          gchar *pkg_name = l->data;
+          AppInfo *app = app_info_new (pkg_name, APP_TYPE_SYSTEM);
+          system_apps = g_list_append (system_apps, app);
+        }
+      /* pkg_names listesini (stringler dahil) temizle */
+      g_list_free_full (pkg_names, g_free);
+    }
+
+  /* Kullanıcı ve sistem uygulamalarını birleştir */
+  /* Not: data->user_apps sahipliğini alıyoruz, data_free'de double-free olmamalı.
+     Bu yüzden data->user_apps'i NULL yapıyoruz. */
+  all_apps = g_list_concat (data->user_apps, system_apps);
+  data->user_apps = NULL;
+
+  populate_app_list (self, all_apps);
+
+  /* all_apps listesindeki AppInfo'lar populate_app_list içinde row'lara ref ile bağlandı.
+     Burada listeyi temizlerken unref yapmalıyız. */
+  g_list_free_full (all_apps, g_object_unref);
+
+  /* Yükleme bitti, listeyi göster */
+  if (data->previous_stack_child)
+    gtk_stack_set_visible_child_name (self->content_stack, data->previous_stack_child);
+  else
+    gtk_stack_set_visible_child_name (self->content_stack, "all");
+
+  load_apps_data_free (data);
+}
+
+static void
+on_user_packages_loaded (GObject      *source_object G_GNUC_UNUSED,
+                         GAsyncResult *result,
+                         gpointer      user_data)
+{
+  LoadAppsData *data = user_data;
+  GError *error = NULL;
+  GList *pkg_names = NULL;
+  GList *l;
+
+  pkg_names = adb_get_packages_finish (result, &error);
+
+  if (error)
+    {
+      g_warning ("Kullanıcı uygulamaları alınamadı: %s", error->message);
+      g_clear_error (&error);
+    }
+  else
+    {
+      /* String listesini AppInfo listesine çevir */
+      for (l = pkg_names; l != NULL; l = l->next)
+        {
+          gchar *pkg_name = l->data;
+          AppInfo *app = app_info_new (pkg_name, APP_TYPE_USER);
+          data->user_apps = g_list_append (data->user_apps, app);
+        }
+      g_list_free_full (pkg_names, g_free);
+    }
+
+  /* Şimdi sistem uygulamalarını yükle */
+  adb_get_packages_async (data->serial, "-s", NULL, on_system_packages_loaded, data);
+}
+
+static void
+load_applications (MainWindow *self, const gchar *serial)
+{
+  /* Tüm listeleri temizle */
+  GtkWidget *child;
+  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->all_list))))
+    gtk_list_box_remove (self->all_list, child);
+  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->unknown_list))))
+    gtk_list_box_remove (self->unknown_list, child);
+  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->malicious_list))))
+    gtk_list_box_remove (self->malicious_list, child);
+  while ((child = gtk_widget_get_first_child (GTK_WIDGET (self->safe_list))))
+    gtk_list_box_remove (self->safe_list, child);
+
+  /* Yükleme başlıyor, loading ekranını göster */
+  LoadAppsData *data = g_new0 (LoadAppsData, 1);
+  data->self = self;
+  data->serial = g_strdup (serial);
+
+  const gchar *current_child = gtk_stack_get_visible_child_name (self->content_stack);
+  if (g_strcmp0 (current_child, "loading") == 0)
+    data->previous_stack_child = g_strdup ("all");
+  else
+    data->previous_stack_child = g_strdup (current_child);
+
+  gtk_stack_set_visible_child_name (self->content_stack, "loading");
+
+  /* Kullanıcı uygulamalarını yükle (-3) */
+  adb_get_packages_async (serial, "-3", NULL, on_user_packages_loaded, data);
 }
 
 static void

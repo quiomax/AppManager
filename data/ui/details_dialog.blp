@@ -10,87 +10,105 @@ template $AppDetailsDialog : Adw.Dialog {
     [top]
     Adw.HeaderBar {}
 
-    content: Gtk.Box {
-      orientation: vertical;
-      spacing: 12;
-      margin-top: 12;
-      margin-bottom: 12;
-      margin-start: 12;
-      margin-end: 12;
-
-      Gtk.Image app_icon {
-        pixel-size: 64;
-        resource: "/com/muha/AppManager/icons/AndroidHead.svg";
-        halign: center;
+    content: Gtk.Stack content_stack {
+      Gtk.StackPage {
+        name: "loading";
+        child: Adw.StatusPage {
+          title: "Yükleniyor...";
+          child: Gtk.Spinner {
+            spinning: true;
+            halign: center;
+            width-request: 32;
+            height-request: 32;
+          };
+        };
       }
 
-      Gtk.Label app_name {
-        label: "Uygulama Adı";
-        styles ["title-2"]
-        halign: center;
-        wrap: true;
-        justify: center;
-      }
+      Gtk.StackPage {
+        name: "details";
+        child: Gtk.Box {
+          orientation: vertical;
+          spacing: 12;
+          margin-top: 12;
+          margin-bottom: 12;
+          margin-start: 12;
+          margin-end: 12;
 
-      Gtk.Label package_name {
-        label: "com.example.app";
-        styles ["caption"]
-        halign: center;
-        selectable: true;
-      }
+          Gtk.Image app_icon {
+            pixel-size: 64;
+            resource: "/com/muha/AppManager/icons/AndroidHead.svg";
+            halign: center;
+          }
 
-      Adw.PreferencesGroup {
-        Adw.ActionRow app_version {
-          title: "Versiyon";
-          subtitle: "-";
-        }
-        Adw.ActionRow app_size {
-          title: "Boyut";
-          subtitle: "-";
-        }
-        Adw.ActionRow app_uid {
-          title: "UID";
-          subtitle: "-";
-        }
-        Adw.ActionRow install_date {
-          title: "Yükleme Tarihi";
-          subtitle: "-";
-        }
-      }
+          Gtk.Label app_name {
+            label: "Uygulama Adı";
+            styles ["title-2"]
+            halign: center;
+            wrap: true;
+            justify: center;
+          }
 
-      Gtk.Box {
-        orientation: horizontal;
-        spacing: 12;
-        halign: center;
-        margin-top: 12;
+          Gtk.Label package_name {
+            label: "com.example.app";
+            styles ["caption"]
+            halign: center;
+            selectable: true;
+          }
 
-        Gtk.Label {
-            label: "Kategori:";
-            styles ["heading"]
-        }
+          Adw.PreferencesGroup {
+            Adw.ActionRow app_version {
+              title: "Versiyon";
+              subtitle: "-";
+            }
+            Adw.ActionRow app_size {
+              title: "Boyut";
+              subtitle: "-";
+            }
+            Adw.ActionRow app_uid {
+              title: "UID";
+              subtitle: "-";
+            }
+            Adw.ActionRow install_date {
+              title: "Yükleme Tarihi";
+              subtitle: "-";
+            }
+          }
 
-        Gtk.Label category_label {
-            label: "Bilinmeyen";
-            styles ["body"]
-        }
-      }
+          Gtk.Box {
+            orientation: horizontal;
+            spacing: 12;
+            halign: center;
+            margin-top: 12;
 
-      Gtk.Box {
-        orientation: horizontal;
-        spacing: 12;
-        halign: center;
-        margin-top: 12;
+            Gtk.Label {
+                label: "Kategori:";
+                styles ["heading"]
+            }
 
-        Gtk.Button backup_button {
-          label: "Yedekle";
-          icon-name: "document-save-symbolic";
-        }
+            Gtk.Label category_label {
+                label: "Bilinmeyen";
+                styles ["body"]
+            }
+          }
 
-        Gtk.Button uninstall_button {
-          label: "Kaldır";
-          icon-name: "user-trash-symbolic";
-          styles ["destructive-action"]
-        }
+          Gtk.Box {
+            orientation: horizontal;
+            spacing: 12;
+            halign: center;
+            margin-top: 12;
+
+            Gtk.Button backup_button {
+              label: "Yedekle";
+              icon-name: "document-save-symbolic";
+            }
+
+            Gtk.Button uninstall_button {
+              label: "Kaldır";
+              icon-name: "user-trash-symbolic";
+              styles ["destructive-action"]
+            }
+          }
+        };
       }
     };
   };
