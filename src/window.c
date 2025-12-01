@@ -180,6 +180,8 @@ struct _MainWindow
   GtkListBox *safe_list;
   GtkListBox *all_list;
 
+  AdwSplitButton *select_button;
+
   GtkLabel *selected_label;
   GtkLabel *malicious_label;
   GtkLabel *safe_label;
@@ -208,6 +210,8 @@ main_window_class_init (MainWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, MainWindow, malicious_list);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, safe_list);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, all_list);
+
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, select_button);
 
   gtk_widget_class_bind_template_child (widget_class, MainWindow, selected_label);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, malicious_label);
@@ -366,16 +370,50 @@ refresh_devices (MainWindow *self)
   adb_get_devices_async (NULL, on_devices_loaded, self);
 }
 
-static void
-on_select_all_action (GSimpleAction *action G_GNUC_UNUSED,
-                      GVariant      *parameter G_GNUC_UNUSED,
-                      gpointer       user_data)
-{
-  MainWindow *self = MAIN_WINDOW (user_data);
-  GtkWidget *child;
-  gboolean all_selected = TRUE;
+static void on_app_toggled (GtkCheckButton *check, gpointer user_data);
 
-  /* Önce hepsinin seçili olup olmadığını kontrol et */
+static void
+sync_selection_for_app (MainWindow *self, AppInfo *app)
+{
+  GtkListBox *lists[] = {self->all_list, self->unknown_list, self->malicious_list, self->safe_list};
+
+  for (int i = 0; i < 4; i++)
+    {
+      if (!lists[i]) continue;
+
+      GtkWidget *child = gtk_widget_get_first_child (GTK_WIDGET (lists[i]));
+      while (child)
+        {
+          AdwActionRow *row = ADW_ACTION_ROW (child);
+          AppInfo *row_app = g_object_get_data (G_OBJECT (row), "app-info");
+
+          if (row_app == app)
+            {
+              GtkWidget *prefix = g_object_get_data (G_OBJECT (row), "selection-checkbox");
+              if (GTK_IS_CHECK_BUTTON (prefix))
+                {
+                  g_signal_handlers_block_by_func (prefix, on_app_toggled, self);
+                  gtk_check_button_set_active (GTK_CHECK_BUTTON (prefix), app->is_selected);
+                  g_signal_handlers_unblock_by_func (prefix, on_app_toggled, self);
+                }
+              break;
+            }
+
+          child = gtk_widget_get_next_sibling (child);
+        }
+    }
+}
+
+static void
+update_button_labels (MainWindow *self)
+{
+  const gchar *visible_child = gtk_stack_get_visible_child_name (self->content_stack);
+  GtkListBox *current_list = NULL;
+  gboolean any_selected_global = FALSE;
+  gboolean any_selected_in_category = FALSE;
+  GtkWidget *child;
+
+  /* Önce herhangi bir uygulamanın seçili olup olmadığını kontrol et (Global) */
   for (child = gtk_widget_get_first_child (GTK_WIDGET (self->all_list));
        child != NULL;
        child = gtk_widget_get_next_sibling (child))
@@ -383,37 +421,71 @@ on_select_all_action (GSimpleAction *action G_GNUC_UNUSED,
       AdwActionRow *row = ADW_ACTION_ROW (child);
       AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
 
-      if (app && !app->is_selected)
+      if (app && app->is_selected)
         {
-          all_selected = FALSE;
+          any_selected_global = TRUE;
           break;
         }
     }
 
-  /* Duruma göre işlem yap */
-  gboolean new_state = !all_selected;
-
-  for (child = gtk_widget_get_first_child (GTK_WIDGET (self->all_list));
-       child != NULL;
-       child = gtk_widget_get_next_sibling (child))
+  if (g_str_equal (visible_child, "all"))
     {
-      AdwActionRow *row = ADW_ACTION_ROW (child);
-      GtkWidget *prefix = adw_action_row_get_activatable_widget (row);
+      current_list = self->all_list;
+      any_selected_in_category = any_selected_global;
+    }
+  else if (g_str_equal (visible_child, "safe"))
+    current_list = self->safe_list;
+  else if (g_str_equal (visible_child, "malicious"))
+    current_list = self->malicious_list;
+  else if (g_str_equal (visible_child, "unknown"))
+    current_list = self->unknown_list;
 
-      if (GTK_IS_CHECK_BUTTON (prefix))
+  /* Mevcut kategoride seçili öge var mı? */
+  if (current_list && !any_selected_in_category)
+    {
+      for (child = gtk_widget_get_first_child (GTK_WIDGET (current_list));
+           child != NULL;
+           child = gtk_widget_get_next_sibling (child))
         {
-          gtk_check_button_set_active (GTK_CHECK_BUTTON (prefix), new_state);
+          AdwActionRow *row = ADW_ACTION_ROW (child);
+          AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
+
+          if (app && app->is_selected)
+            {
+              any_selected_in_category = TRUE;
+              break;
+            }
         }
     }
-}
 
-static void
-on_refresh_action (GSimpleAction *action G_GNUC_UNUSED,
-                   GVariant      *parameter G_GNUC_UNUSED,
-                   gpointer       user_data)
-{
-  MainWindow *self = MAIN_WINDOW (user_data);
-  refresh_devices (self);
+  /* Ana düğmeyi (SplitButton) güncelle */
+  if (self->select_button)
+    {
+      if (any_selected_in_category)
+        {
+          adw_split_button_set_label (self->select_button, "Seçimi Temizle");
+          gtk_widget_set_tooltip_text (GTK_WIDGET (self->select_button), "Seçimi temizle (Ctrl+A)");
+          adw_split_button_set_icon_name (self->select_button, "edit-clear-all-symbolic");
+        }
+      else
+        {
+          adw_split_button_set_label (self->select_button, "Tümünü Seç");
+          gtk_widget_set_tooltip_text (GTK_WIDGET (self->select_button), "Tümünü seç (Ctrl+A)");
+          adw_split_button_set_icon_name (self->select_button, "edit-select-all-symbolic");
+        }
+    }
+
+  /* Menüdeki "Herşeyi Seç" eylemini güncelle */
+  const gchar *label;
+  if (any_selected_global)
+    label = "Tüm Seçimi Temizle (Ctrl+Shift+A)";
+  else
+    label = "Herşeyi Seç (Ctrl+Shift+A)";
+
+  GMenu *menu = g_menu_new ();
+  g_menu_append (menu, label, "win.select-all-global");
+  adw_split_button_set_menu_model (self->select_button, G_MENU_MODEL (menu));
+  g_object_unref (menu);
 }
 
 static void
@@ -457,6 +529,120 @@ update_selection_status (MainWindow *self)
   gtk_label_set_text (self->malicious_label, malicious_text);
   gtk_label_set_text (self->safe_label, safe_text);
   gtk_label_set_text (self->total_label, total_text);
+
+  update_button_labels (self);
+}
+
+static void
+on_select_all_action (GSimpleAction *action G_GNUC_UNUSED,
+                      GVariant      *parameter G_GNUC_UNUSED,
+                      gpointer       user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+  const gchar *visible_child = gtk_stack_get_visible_child_name (self->content_stack);
+  GtkListBox *current_list = NULL;
+
+  if (g_str_equal (visible_child, "all"))
+    current_list = self->all_list;
+  else if (g_str_equal (visible_child, "safe"))
+    current_list = self->safe_list;
+  else if (g_str_equal (visible_child, "malicious"))
+    current_list = self->malicious_list;
+  else if (g_str_equal (visible_child, "unknown"))
+    current_list = self->unknown_list;
+
+  if (!current_list)
+    return;
+
+  GtkWidget *child;
+  gboolean any_selected_in_category = FALSE;
+
+  /* Mevcut kategoride seçili öge var mı diye kontrol et */
+  for (child = gtk_widget_get_first_child (GTK_WIDGET (current_list));
+       child != NULL;
+       child = gtk_widget_get_next_sibling (child))
+    {
+      AdwActionRow *row = ADW_ACTION_ROW (child);
+      AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
+
+      if (app && app->is_selected)
+        {
+          any_selected_in_category = TRUE;
+          break;
+        }
+    }
+
+  /* Duruma göre işlem yap: Eğer herhangi biri seçiliyse temizle, değilse hepsini seç */
+  gboolean new_state = !any_selected_in_category;
+
+  for (child = gtk_widget_get_first_child (GTK_WIDGET (current_list));
+       child != NULL;
+       child = gtk_widget_get_next_sibling (child))
+    {
+      AdwActionRow *row = ADW_ACTION_ROW (child);
+      AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
+
+      if (app)
+        {
+          app->is_selected = new_state;
+          sync_selection_for_app (self, app);
+        }
+    }
+
+  update_selection_status (self);
+}
+
+static void
+on_select_all_global_action (GSimpleAction *action G_GNUC_UNUSED,
+                              GVariant      *parameter G_GNUC_UNUSED,
+                              gpointer       user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+  GtkWidget *child;
+  gboolean any_selected = FALSE;
+
+  /* Önce herhangi bir uygulamanın seçili olup olmadığını kontrol et */
+  for (child = gtk_widget_get_first_child (GTK_WIDGET (self->all_list));
+       child != NULL;
+       child = gtk_widget_get_next_sibling (child))
+    {
+      AdwActionRow *row = ADW_ACTION_ROW (child);
+      AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
+
+      if (app && app->is_selected)
+        {
+          any_selected = TRUE;
+          break;
+        }
+    }
+
+  /* Duruma göre işlem yap: Eğer herhangi biri seçiliyse hepsini temizle, değilse hepsini seç */
+  gboolean new_state = !any_selected;
+
+  for (child = gtk_widget_get_first_child (GTK_WIDGET (self->all_list));
+       child != NULL;
+       child = gtk_widget_get_next_sibling (child))
+    {
+      AdwActionRow *row = ADW_ACTION_ROW (child);
+      AppInfo *app = g_object_get_data (G_OBJECT (row), "app-info");
+
+      if (app)
+        {
+          app->is_selected = new_state;
+          sync_selection_for_app (self, app);
+        }
+    }
+
+  update_selection_status (self);
+}
+
+static void
+on_refresh_action (GSimpleAction *action G_GNUC_UNUSED,
+                   GVariant      *parameter G_GNUC_UNUSED,
+                   gpointer       user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+  refresh_devices (self);
 }
 
 static void
@@ -542,6 +728,9 @@ on_category_changed (GSimpleAction *action G_GNUC_UNUSED,
         }
       g_signal_connect (check, "toggled", G_CALLBACK (on_app_toggled), self);
       adw_action_row_add_prefix (new_row, check);
+
+      /* Checkbox'ı sakla */
+      g_object_set_data (G_OBJECT (new_row), "selection-checkbox", check);
 
       /* Aktivasyon widget'ı olarak ayarla */
       adw_action_row_set_activatable_widget (new_row, check);
@@ -646,6 +835,7 @@ on_app_toggled (GtkCheckButton *check,
   if (app)
     {
       app->is_selected = gtk_check_button_get_active (GTK_CHECK_BUTTON (check));
+      sync_selection_for_app (self, app);
       update_selection_status (self);
     }
 }
@@ -691,6 +881,9 @@ populate_app_list (MainWindow *self, GList *packages)
 
           g_signal_connect (check, "toggled", G_CALLBACK (on_app_toggled), self);
           adw_action_row_add_prefix (row, check);
+
+          /* Checkbox'ı sakla */
+          g_object_set_data (G_OBJECT (row), "selection-checkbox", check);
 
           /* Aktivasyon widget'ı olarak ayarla */
           adw_action_row_set_activatable_widget (row, check);
@@ -1010,6 +1203,7 @@ main_window_init (MainWindow *self)
   GActionEntry action_entries[] = {
     { "refresh", on_refresh_action, NULL, NULL, NULL, {0} },
     { "select-all", on_select_all_action, NULL, NULL, NULL, {0} },
+    { "select-all-global", on_select_all_global_action, NULL, NULL, NULL, {0} },
   };
 
   gtk_widget_init_template (GTK_WIDGET (self));
@@ -1026,7 +1220,9 @@ main_window_init (MainWindow *self)
                                    self);
   gtk_widget_insert_action_group (GTK_WIDGET (self), "win", G_ACTION_GROUP (actions));
 
-  /* Sinyal bağlantısı */
+  /* Sinyal bağlantıları */
+  g_signal_connect_swapped (self->content_stack, "notify::visible-child-name",
+                            G_CALLBACK (update_button_labels), self);
   g_signal_connect (self->device_dropdown, "notify::selected", G_CALLBACK (on_device_selected), self);
 
   /* Başlangıçta cihazları kontrol et */
