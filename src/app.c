@@ -118,6 +118,9 @@ app_info_new (const gchar *package_name,
   /* Label'ı utils'den al (Dosyadan veya otomatik formatla) */
   self->label = utils_get_app_name (package_name);
 
+  /* Kategoriyi utils'den al */
+  self->category = utils_get_app_category (package_name);
+
   return self;
 }
 

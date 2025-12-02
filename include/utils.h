@@ -22,6 +22,14 @@ void utils_load_app_names (void);
 void utils_load_app_categories (void);
 
 /**
+ * utils_reload_app_data:
+ *
+ * Bellekteki uygulama isimlerini ve kategorilerini temizler.
+ * Bir sonraki erişimde dosyadan tekrar okunmasını sağlar.
+ */
+void utils_reload_app_data (void);
+
+/**
  * utils_get_app_name:
  * @package_name: Paket adı (örn. "com.whatsapp")
  *

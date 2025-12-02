@@ -362,3 +362,25 @@ utils_save_app_category (const gchar *package_name, AppCategory old_category, Ap
   g_free (malicious_file);
   g_free (safe_file);
 }
+
+void
+utils_reload_app_data (void)
+{
+  if (app_names_table)
+    {
+      g_hash_table_destroy (app_names_table);
+      app_names_table = NULL;
+    }
+
+  if (malicious_apps_set)
+    {
+      g_hash_table_destroy (malicious_apps_set);
+      malicious_apps_set = NULL;
+    }
+
+  if (safe_apps_set)
+    {
+      g_hash_table_destroy (safe_apps_set);
+      safe_apps_set = NULL;
+    }
+}

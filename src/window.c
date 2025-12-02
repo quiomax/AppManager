@@ -186,6 +186,8 @@ struct _MainWindow
   GtkLabel *malicious_label;
   GtkLabel *safe_label;
   GtkLabel *total_label;
+
+  gulong device_handler_id;
 };
 
 G_DEFINE_FINAL_TYPE (MainWindow, main_window, ADW_TYPE_APPLICATION_WINDOW)
@@ -346,7 +348,11 @@ on_devices_loaded (GObject      *source_object G_GNUC_UNUSED,
 
       if (n_devices > 0)
         {
+          /* Model değiştiğinde sinyal tetiklenir, bunu engelle */
+          g_signal_handler_block (self->device_dropdown, self->device_handler_id);
           gtk_drop_down_set_model (self->device_dropdown, G_LIST_MODEL (string_list));
+          g_signal_handler_unblock (self->device_dropdown, self->device_handler_id);
+
           gtk_widget_set_sensitive (GTK_WIDGET (self->device_dropdown), TRUE);
 
           /* Model değiştiğinde sinyal tetiklenmeyebilir (örn. index 0 -> 0),
@@ -392,9 +398,13 @@ sync_selection_for_app (MainWindow *self, AppInfo *app)
               GtkWidget *prefix = g_object_get_data (G_OBJECT (row), "selection-checkbox");
               if (GTK_IS_CHECK_BUTTON (prefix))
                 {
-                  g_signal_handlers_block_by_func (prefix, on_app_toggled, self);
-                  gtk_check_button_set_active (GTK_CHECK_BUTTON (prefix), app->is_selected);
-                  g_signal_handlers_unblock_by_func (prefix, on_app_toggled, self);
+                  gulong handler_id = (gulong)g_object_get_data (G_OBJECT (prefix), "handler-id");
+                  if (handler_id > 0)
+                    {
+                      g_signal_handler_block (prefix, handler_id);
+                      gtk_check_button_set_active (GTK_CHECK_BUTTON (prefix), app->is_selected);
+                      g_signal_handler_unblock (prefix, handler_id);
+                    }
                 }
               break;
             }
@@ -642,6 +652,7 @@ on_refresh_action (GSimpleAction *action G_GNUC_UNUSED,
                    gpointer       user_data)
 {
   MainWindow *self = MAIN_WINDOW (user_data);
+  utils_reload_app_data ();
   refresh_devices (self);
 }
 
@@ -726,7 +737,8 @@ on_category_changed (GSimpleAction *action G_GNUC_UNUSED,
           gtk_check_button_set_active (GTK_CHECK_BUTTON (check), TRUE);
           app->is_selected = TRUE;
         }
-      g_signal_connect (check, "toggled", G_CALLBACK (on_app_toggled), self);
+      gulong handler_id = g_signal_connect (check, "toggled", G_CALLBACK (on_app_toggled), self);
+      g_object_set_data (G_OBJECT (check), "handler-id", (gpointer)handler_id);
       adw_action_row_add_prefix (new_row, check);
 
       /* Checkbox'ı sakla */
@@ -879,7 +891,8 @@ populate_app_list (MainWindow *self, GList *packages)
               app->is_selected = TRUE;
             }
 
-          g_signal_connect (check, "toggled", G_CALLBACK (on_app_toggled), self);
+          gulong handler_id = g_signal_connect (check, "toggled", G_CALLBACK (on_app_toggled), self);
+          g_object_set_data (G_OBJECT (check), "handler-id", (gpointer)handler_id);
           adw_action_row_add_prefix (row, check);
 
           /* Checkbox'ı sakla */
@@ -1223,7 +1236,7 @@ main_window_init (MainWindow *self)
   /* Sinyal bağlantıları */
   g_signal_connect_swapped (self->content_stack, "notify::visible-child-name",
                             G_CALLBACK (update_button_labels), self);
-  g_signal_connect (self->device_dropdown, "notify::selected", G_CALLBACK (on_device_selected), self);
+  self->device_handler_id = g_signal_connect (self->device_dropdown, "notify::selected", G_CALLBACK (on_device_selected), self);
 
   /* Başlangıçta cihazları kontrol et */
   refresh_devices (self);
