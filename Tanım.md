@@ -39,6 +39,12 @@
 ## Başlık Çubuğu `Adw.HeaderBar`
 - [Sol] Yenile Düğmesi `Gtk.Button`: Simge `view-refresh-symbolic`, ipucu `Listeyi Yenile (Ctrl+R)`.
 - [Sol] Seçim Menüsü `Adw.SplitButton`: Simge `edit-select-all-symbolic`, ipucu "Sadece bu sekmedeki uygulamaları seçer/temizler (Ctrl+A)". Menü: "Tümünü Seç/temizle (Ctrl+Shift+A)".
+- Gelişmiş Seçim Sistemi:
+ - `Ctrl+A` kısayolu ile sadece mevcut sekmedeki uygulamaları seçme/temizleme
+  - `Ctrl+Shift+A` kısayolu ile tüm uygulamaları seçme/temizleme
+  - Seçim durumuna göre buton etiketlerinin dinamik değişimi ("Tümünü Seç" / "Seçimi Temizle")
+  - Zararlı uygulamaların otomatik olarak seçili gelmesi
+  - Seçimlerin tüm kategorilerde senkron tutulması
 - [Orta] Cihaz Seçimi `Gtk.DropDown`: Başlık widget'ı içinde, etiket "Cihaz:" ve cihaz listesi (Ctrl+Space).
 - [Sağ] Arama Düğmesi `Gtk.ToggleButton`: Simge `edit-find-symbolic`, ipucu "Ara (Ctrl+F)". Uygulama listesi görünürken tıklanabilir olur.
 - [Sağ] Kaldır Düğmesi `Gtk.Button`: Simge `edit-delete-symbolic`, ipucu "Seçili Uygulamaları Kaldır (Delete)". Varsayılan pasif.
@@ -68,7 +74,18 @@
     - "Tarih" `Gtk.ToggleButton`
     - "Regex" `Gtk.ToggleButton`: Aktif olduğunda arama alanı düzenli ifade desteği sağlar.
     - Görünürlük: Ayarlar → Görünüm → "Gelişmiş Arama Seçeneklerini Göster" aktif olduğunda görünür.
+- Arama ve Filtreleme Sistemi:
+  - `Ctrl+F` kısayolu ile arama alanını açma/kapama
+  - Filtreleme butonları ile uygulama adı, paket kimliği, boyut ve tarihe göre arama
+  - Arama sonuçları tüm kategorilerdeki listelerde aynı anda uygulanır
+  - Regex filtreleme seçeneği ile gelişmiş arama desteği
+    - Regex arama desteği ayarlardan açılıp kapatılabilir olmalı.
 - Bilgi sayfası `Adw.StatusPage`: Cihaz bağlı olmadığında yada cihaz ile alakalı yapılması gereken bir işlem olduğunda gösterilir.
+- UI Durum Yönetimi:
+  - Loading ekranı: Uygulama listesi yüklenirken `Adw.Spinner` gösterimi
+  - Boş liste yönetimi: Her kategori için ayrı "empty" stack sayfası
+  - Durum geçişleri: Content stack ile farklı durumlar arası geçişler
+ - Stack tabanlı navigasyon: Farklı durumlar için `Gtk.Stack` kullanımı
   - Başlık "Cihaz Bulunamadı". Simge `phone-symbolic`. Mesaj "USB hata ayıklamayı etkinleştir ve cihazı kablo ile bağla.\n\n<b>Ayarlar</b> → <b>Telefon hakkında</b> → <b>Derleme numarası</b>\n<i>5 defa dokun</i>.\n\nCihaz otomatik olarak tanınmazsa <b>Yenile</b> düğmesine tıklayarak yada <b>Ctrl+R</b> tuşlarına basarak cihazın algılanmasını sağla."
   - Başlık: "ADB Erişim İznini". Simge `network-transmit-receive-symbolic`. Mesaj "Telefon ekranında beliren ADB erişim izni isteği mesajını onayla"
   - Başlık: "Uygulama Bulunamadı". Simge `emblem-readonly-symbolic`. Mesaj "Cihazda kullanıcı tarafından kurulan uygulama bulunamadı"
@@ -89,6 +106,12 @@
 - Birden fazla ADB cihazı bağlıysa, cihaz seçimi için bir açılır liste `Gtk.DropDown` göster.
 - Cihaz listesinde marka-model bilgileri yer alsın.
 - Cihaz takılma/çıkarılma durumlarında liste otomatik olarak güncellensin.
+- Cihaz Bağlantı Durumları:
+  - Cihaz serial numarasının parse edilmesi ("Model (Serial)" formatı)
+  - Yetkisiz cihazlar için "(Yetkisiz)" etiketiyle gösterim
+  - Yetkisiz cihaz için ayrı durum sayfası (`unauthorized` stack)
+ - `Ctrl+Space` kısayolu ile cihaz dropdown'ını açma
+  - Dropdown model değişikliklerinde sinyal tetiklenmesinin engellenmesi
 
 ## Uygulama Listesi `Gtk.ListBox`
 - Kullanıcı tarafından kurulmuş uygulamaları listeler `Gtk.ListBox`.
@@ -98,15 +121,27 @@
     - Tıklandığında mevcut kategori dışındaki kategorileri(Zararlı, Güvenli, Bilinmeyen) listeleyen bir popup menü açılır. Kullanıcı bir kategori seçtiğinde uygulama anında o kategoriye taşınır ve ilgili sekmelerde güncellenir.
   - Uygulama simgesi `Gtk.Image`, simge bulunamazsa yer tutucu simge `AndroidHead.svg` gösterilsin.
   - Uygulama adı `Gtk.Label` kalın harflerle.
-  - Adın altında uygulama kimliği `Gtk.Label` italik harflerle.
+ - Adın altında uygulama kimliği `Gtk.Label` italik harflerle.
   - Satırın sonunda uygulama detaylarını açmak için bir bilgi düğmesi `Gtk.Button`.
+  - Sağ tık menüsü: Uygulama satırında sağ tıklama ile kategori değiştirme menüsünü açma
+  - Kategori değiştirme menüsü: Mevcut kategori dışındaki kategorileri listeleyen popup menü
     - Bilgi düğmesi `Gtk.Button`, tıklandığında ilgili uygulamanın bilgilerini gösteren `Adw.Dialog` açılsın.
     - Dialog'un üst kısmında uygulama simgesi, altında uygulama adı, uygulama kimliği, uygulama boyutu, uygulama versiyonu, uygulama yayıncısı, uygulama tarih bilgileri gösterilsin.
     - Dialog'un alt kısmında uygulama kategorisi simgesiyle beraber gösterilsin.
     - Kategori düğmesi aktif ve işevsel olsun, tıklandığında kategori değiştirme popup penceresi açılsın.
     - Dialog'un alt kısmında yedekleme yapma ve doğrudan kaldırma düğmeleri olsun.
     - Dialog dışı bir yere tıklandığında dialog kapansın (modal davranış).
+- Uygulama Detay Dialog Özellikleri:
+  - Asenkron detay yükleme: ADB'den detayları arka planda çekme
+  - Dinamik bilgi gösterimi: Versiyon, boyut, UID, kurulum tarihi gibi detaylar
+ - Kategori gösterimi: Uygulama kategorisinin dialog içinde gösterilmesi
+  - Kategori değiştirme butonu: Dialog içinde de kategori değiştirme özelliği
+ - Sistem/Kullanıcı etiketleme: "(Sistem)" ve "(Kullanıcı)" etiketleri
 - Boş liste durumu: Eğer bir kategoride hiç uygulama yoksa, `Adw.StatusPage` ile uygun mesaj gösterilsin.
+- UI Elemanları ve Widget Davranışları:
+  - Sync selection: Aynı uygulama birden fazla listedeyse tüm listelerde seçimi senkron tutma
+  - Dinamik buton etiketleri: Seçime göre "Tümünü Seç"/"Seçimi Temizle" değişimi
+  - Signal handler bloklama: Model değişikliklerinde sinyal tetiklenmesinin engellenmesi
 
 ## Simge Yönetimi `Gtk.Image`
 - Uygulama simgeleri öncelikle yerel simge dizininde aransın, yoksa adb üzerinden çekilen apk içinden ayıklansın.
