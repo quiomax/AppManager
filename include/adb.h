@@ -9,6 +9,9 @@ G_BEGIN_DECLS
 typedef struct {
   gchar *serial;
   gchar *model;
+  gchar *manufacturer;
+  gchar *brand;
+  gchar *name;
   gboolean is_authorized;
 } AdbDevice;
 

@@ -242,6 +242,30 @@ main_window_class_init (MainWindowClass *klass)
 
 static void on_device_selected (GtkDropDown *dropdown, GParamSpec *pspec, gpointer user_data);
 
+static gchar *
+format_device_label (AdbDevice *device)
+{
+  if (!device)
+    return g_strdup ("Bilinmeyen Cihaz");
+
+  if (device->is_authorized)
+    {
+      if (device->manufacturer && device->brand && device->name &&
+          strlen(device->manufacturer) > 0 && strlen(device->brand) > 0 && strlen(device->name) > 0)
+        return g_strdup_printf ("%s %s %s (%s)", device->manufacturer, device->brand, device->name, device->serial);
+      else
+        return g_strdup_printf ("%s (%s)", device->model, device->serial);
+    }
+  else
+    {
+      if (device->manufacturer && device->brand && device->name &&
+          strlen(device->manufacturer) > 0 && strlen(device->brand) > 0 && strlen(device->name) > 0)
+        return g_strdup_printf ("%s %s %s (%s) (Yetkisiz)", device->manufacturer, device->brand, device->name, device->serial);
+      else
+        return g_strdup_printf ("%s (%s) (Yetkisiz)", device->model, device->serial);
+    }
+}
+
 static void
 on_details_clicked (GtkButton *btn G_GNUC_UNUSED,
                     gpointer   user_data)
@@ -352,10 +376,7 @@ on_devices_loaded (GObject      *source_object G_GNUC_UNUSED,
           AdbDevice *device = l->data;
           gchar *label;
 
-          if (device->is_authorized)
-            label = g_strdup_printf ("%s (%s)", device->model, device->serial);
-          else
-            label = g_strdup_printf ("%s (%s) (Yetkisiz)", device->model, device->serial);
+          label = format_device_label (device);
 
           gtk_string_list_append (string_list, label);
           g_free (label);

@@ -39,6 +39,9 @@ adb_device_free (AdbDevice *device)
     return;
   g_free (device->serial);
   g_free (device->model);
+  g_free (device->manufacturer);
+  g_free (device->brand);
+  g_free (device->name);
   g_free (device);
 }
 
@@ -117,6 +120,72 @@ parse_device_line (const gchar *line_orig)
   return device;
 }
 
+/* --- Cihaz Özelliklerini Alma --- */
+
+static gchar *
+get_device_property (const gchar *serial, const gchar *property, GError **error)
+{
+  g_autofree gchar *adb_path = get_adb_path ();
+  g_autoptr(GSubprocess) proc = NULL;
+ GInputStream *stdout_stream = NULL;
+ g_autoptr(GDataInputStream) data_stream = NULL;
+  gchar *line = NULL;
+  gchar *result = NULL;
+
+  if (!adb_path)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "ADB bulunamadı");
+      return NULL;
+    }
+
+  proc = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE, error,
+                           adb_path, "-s", serial, "shell", "getprop", property,
+                           NULL);
+
+  if (!proc)
+    {
+      /* Hata varsa NULL döndür */
+      return NULL;
+    }
+
+  /* Hata kontrolü yap */
+  if (g_subprocess_get_stderr_pipe (proc))
+    {
+      /* Hata varsa stderr'den oku ve ignore et */
+    }
+
+  stdout_stream = g_subprocess_get_stdout_pipe (proc);
+  data_stream = g_data_input_stream_new (stdout_stream);
+
+  line = g_data_input_stream_read_line_utf8 (data_stream, NULL, NULL, NULL);
+  if (line)
+    {
+      g_strstrip (line);
+      if (g_str_has_prefix (line, "[") && g_str_has_suffix (line, "]"))
+        {
+          /* [value] formatından value'yu al */
+          gchar *start = line + 1;
+          gchar *end = strrchr (line, ']');
+          if (end && end > start)
+            {
+              *end = '\0';
+              result = g_strdup (start);
+            }
+        }
+      else
+        {
+          result = g_strdup (line);
+        }
+      g_free (line);
+    }
+
+  /* Eğer sonuç NULL veya boşsa, boş string döndür */
+  if (!result)
+    result = g_strdup ("");
+
+  return result;
+}
+
 /* --- Asenkron Cihaz Listeleme --- */
 
 static void
@@ -128,7 +197,7 @@ adb_get_devices_thread (GTask        *task,
   g_autofree gchar *adb_path = get_adb_path ();
   GError *error = NULL;
   g_autoptr(GSubprocess) proc = NULL;
-  GInputStream *stdout_stream = NULL;
+ GInputStream *stdout_stream = NULL;
   g_autoptr(GDataInputStream) data_stream = NULL;
   GList *devices = NULL;
   gchar *line = NULL;
@@ -161,7 +230,45 @@ adb_get_devices_thread (GTask        *task,
 
       AdbDevice *device = parse_device_line (line);
       if (device)
-        devices = g_list_append (devices, device);
+        {
+          /* Yetkisiz cihazlar için boş değerler atayalım */
+          device->manufacturer = g_strdup ("");
+          device->brand = g_strdup ("");
+          device->name = g_strdup ("");
+
+          /* Sadece yetkili cihazlar için ekstra bilgileri al */
+          if (device->is_authorized)
+            {
+              /* Ekstra cihaz bilgilerini al */
+              GError *prop_error = NULL;
+
+              g_free (device->manufacturer);
+              device->manufacturer = get_device_property (device->serial, "ro.product.manufacturer", &prop_error);
+              if (prop_error)
+                {
+                  g_warning ("Manufacturer alınamadı: %s", prop_error->message);
+                  g_clear_error (&prop_error);
+                }
+
+              g_free (device->brand);
+              device->brand = get_device_property (device->serial, "ro.product.brand", &prop_error);
+              if (prop_error)
+                {
+                  g_warning ("Brand alınamadı: %s", prop_error->message);
+                  g_clear_error (&prop_error);
+                }
+
+              g_free (device->name);
+              device->name = get_device_property (device->serial, "ro.product.name", &prop_error);
+              if (prop_error)
+                {
+                  g_warning ("Name alınamadı: %s", prop_error->message);
+                  g_clear_error (&prop_error);
+                }
+            }
+
+          devices = g_list_append (devices, device);
+        }
       g_free (line);
     }
 
