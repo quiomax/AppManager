@@ -189,6 +189,13 @@ struct _MainWindow
 
   GtkToggleButton *search_toggle;
   GtkButton *remove_button;
+  GtkSearchEntry *search_entry;
+  GtkBox *search_filters_box;
+  GtkToggleButton *filter_app_name;
+  GtkToggleButton *filter_package_id;
+  /* Sıralama Düğmeleri - Şimdilik işlevsiz */
+  GtkButton *filter_size;
+  GtkButton *filter_date;
 
   gulong device_handler_id;
 };
@@ -225,6 +232,12 @@ main_window_class_init (MainWindowClass *klass)
 
   gtk_widget_class_bind_template_child (widget_class, MainWindow, search_toggle);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, remove_button);
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, search_entry);
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, search_filters_box);
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, filter_app_name);
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, filter_package_id);
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, filter_size);
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, filter_date);
 }
 
 static void on_device_selected (GtkDropDown *dropdown, GParamSpec *pspec, gpointer user_data);
@@ -1275,6 +1288,100 @@ on_focus_device_action (GSimpleAction *action G_GNUC_UNUSED,
 }
 
 static void
+filter_list_box (GtkListBox *listbox, const gchar *search_text, gboolean search_app_name, gboolean search_package_id)
+{
+  GtkWidget *child;
+
+  if (search_text == NULL || *search_text == '\0')
+    {
+      /* Arama metni boşsa tüm satırları göster */
+      for (child = gtk_widget_get_first_child (GTK_WIDGET (listbox)); child != NULL; child = gtk_widget_get_next_sibling (child))
+        {
+          gtk_widget_set_visible (child, TRUE);
+        }
+      return;
+    }
+
+  gchar *search_lower = g_utf8_strdown (search_text, -1);
+
+  for (child = gtk_widget_get_first_child (GTK_WIDGET (listbox)); child != NULL; child = gtk_widget_get_next_sibling (child))
+    {
+      AppInfo *app = g_object_get_data (G_OBJECT (child), "app-info");
+      gboolean visible = FALSE;
+
+      if (app)
+        {
+          if (search_app_name)
+            {
+              gchar *label_lower = g_utf8_strdown (app_info_get_label (app), -1);
+              if (strstr (label_lower, search_lower) != NULL)
+                {
+                  visible = TRUE;
+                }
+              g_free (label_lower);
+            }
+
+          if (!visible && search_package_id)
+            {
+              gchar *package_lower = g_utf8_strdown (app_info_get_package_name (app), -1);
+              if (strstr (package_lower, search_lower) != NULL)
+                {
+                  visible = TRUE;
+                }
+              g_free (package_lower);
+            }
+        }
+      gtk_widget_set_visible (child, visible);
+    }
+  g_free (search_lower);
+}
+
+static void
+on_search_changed (GtkSearchEntry *entry, gpointer user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+  const gchar *search_text = gtk_editable_get_text (GTK_EDITABLE (entry));
+  gboolean search_app_name = gtk_toggle_button_get_active (self->filter_app_name);
+  gboolean search_package_id = gtk_toggle_button_get_active (self->filter_package_id);
+
+  filter_list_box (self->all_list, search_text, search_app_name, search_package_id);
+  filter_list_box (self->unknown_list, search_text, search_app_name, search_package_id);
+  filter_list_box (self->malicious_list, search_text, search_app_name, search_package_id);
+  filter_list_box (self->safe_list, search_text, search_app_name, search_package_id);
+}
+
+static void on_filter_toggled (GtkToggleButton *button, gpointer user_data);
+
+static void
+on_search_toggled (GtkToggleButton *button, gpointer user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+  gboolean active = gtk_toggle_button_get_active (button);
+
+  gtk_widget_set_visible (GTK_WIDGET (self->search_entry), active);
+  // TODO: Ayarlardan okunacak değer ile değiştir
+  gtk_widget_set_visible (GTK_WIDGET (self->search_filters_box), active);
+
+  if (active)
+    {
+      gtk_widget_grab_focus (GTK_WIDGET (self->search_entry));
+    }
+  else
+    {
+      /* Arama alanını temizle ve filtreyi sıfırla */
+      gtk_editable_set_text (GTK_EDITABLE (self->search_entry), "");
+    }
+}
+
+static void
+on_filter_toggled (GtkToggleButton *button G_GNUC_UNUSED, gpointer user_data)
+{
+    MainWindow *self = MAIN_WINDOW (user_data);
+    /* Sadece arama değişikliği sinyalini tetikle, mantık zaten orada. */
+    g_signal_emit_by_name (self->search_entry, "search-changed", NULL);
+}
+
+static void
 main_window_init (MainWindow *self)
 {
   GSimpleActionGroup *actions;
@@ -1306,6 +1413,10 @@ main_window_init (MainWindow *self)
   g_signal_connect_swapped (self->content_stack, "notify::visible-child-name",
                             G_CALLBACK (update_button_labels), self);
   self->device_handler_id = g_signal_connect (self->device_dropdown, "notify::selected", G_CALLBACK (on_device_selected), self);
+  g_signal_connect (self->search_toggle, "toggled", G_CALLBACK (on_search_toggled), self);
+  g_signal_connect (self->search_entry, "search-changed", G_CALLBACK (on_search_changed), self);
+  g_signal_connect (self->filter_app_name, "toggled", G_CALLBACK (on_filter_toggled), self);
+  g_signal_connect (self->filter_package_id, "toggled", G_CALLBACK (on_filter_toggled), self);
 
   /* Başlangıçta cihazları kontrol et */
   refresh_devices (self);

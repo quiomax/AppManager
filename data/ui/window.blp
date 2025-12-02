@@ -123,6 +123,58 @@ template $MainWindow: Adw.ApplicationWindow {
             margin-bottom: 6;
           }
 
+          Gtk.SearchEntry search_entry {
+            halign: fill;
+            margin-start: 12;
+            margin-end: 12;
+            margin-bottom: 6;
+            placeholder-text: "Uygulama ara...";
+            visible: false;
+          }
+
+          Gtk.Box search_filters_box {
+            orientation: horizontal;
+            halign: fill;
+            spacing: 6;
+            margin-bottom: 6;
+            margin-start: 12;
+            margin-end: 12;
+            visible: false; // Varsayılan olarak gizli
+            Gtk.ToggleButton filter_app_name {
+              label: "Uygulama Adı";
+              active: true;
+            }
+
+            Gtk.ToggleButton filter_package_id {
+              label: "Paket Kimliği";
+              active: true;
+            }
+
+            Gtk.Box {
+              hexpand: true;
+            }
+
+            Gtk.Button filter_size {
+              sensitive: false; // Henüz uygulanmadı
+              child: Gtk.Box {
+                spacing: 6;
+
+                Gtk.Label {
+                  label: "Boyut";
+                }
+
+                Gtk.Image {
+                  icon-name: "view-sort-ascending-symbolic";
+                }
+              };
+            }
+
+            Gtk.Button filter_date {
+              label: "Tarih";
+              sensitive: false; // Henüz uygulanmadı
+            }
+          }
+
           Gtk.DropDown sort_dropdown {
             halign: center;
             margin-bottom: 6;
