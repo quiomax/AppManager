@@ -187,6 +187,9 @@ struct _MainWindow
   GtkLabel *safe_label;
   GtkLabel *total_label;
 
+  GtkToggleButton *search_toggle;
+  GtkButton *remove_button;
+
   gulong device_handler_id;
 };
 
@@ -219,6 +222,9 @@ main_window_class_init (MainWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, MainWindow, malicious_label);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, safe_label);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, total_label);
+
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, search_toggle);
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, remove_button);
 }
 
 static void on_device_selected (GtkDropDown *dropdown, GParamSpec *pspec, gpointer user_data);
@@ -539,6 +545,12 @@ update_selection_status (MainWindow *self)
   gtk_label_set_text (self->malicious_label, malicious_text);
   gtk_label_set_text (self->safe_label, safe_text);
   gtk_label_set_text (self->total_label, total_text);
+
+  /* Kaldır düğmesini seçili uygulama varsa etkinleştir, yoksa devre dışı bırak */
+  if (self->remove_button)
+    {
+      gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button), selected_count > 0);
+    }
 
   update_button_labels (self);
 }
@@ -1210,6 +1222,59 @@ on_device_selected (GtkDropDown *dropdown,
 }
 
 static void
+on_search_toggle_action (GSimpleAction *action G_GNUC_UNUSED,
+                         GVariant      *parameter G_GNUC_UNUSED,
+                         gpointer       user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+
+  if (self->search_toggle)
+    {
+      gboolean active = gtk_toggle_button_get_active (self->search_toggle);
+      gtk_toggle_button_set_active (self->search_toggle, !active);
+    }
+}
+
+static void
+on_remove_apps_action (GSimpleAction *action G_GNUC_UNUSED,
+                       GVariant      *parameter G_GNUC_UNUSED,
+                       gpointer       user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+
+  /* TODO: Implement remove apps functionality */
+  /* For now, just activate the button's action if it's sensitive */
+  if (self->remove_button && gtk_widget_get_sensitive (GTK_WIDGET (self->remove_button)))
+    {
+      gtk_widget_activate (GTK_WIDGET (self->remove_button));
+    }
+}
+
+static void
+on_cancel_action (GSimpleAction *action G_GNUC_UNUSED,
+                  GVariant      *parameter G_GNUC_UNUSED,
+                  gpointer       user_data G_GNUC_UNUSED)
+{
+  /* TODO: Implement cancel operation functionality */
+  /* This should cancel any ongoing operation like backup or removal */
+  g_debug ("Cancel action triggered");
+}
+
+static void
+on_focus_device_action (GSimpleAction *action G_GNUC_UNUSED,
+                        GVariant      *parameter G_GNUC_UNUSED,
+                        gpointer       user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+
+  if (self->device_dropdown)
+    {
+      /* Activate the dropdown to open the popup */
+      gtk_widget_activate (GTK_WIDGET (self->device_dropdown));
+    }
+}
+
+static void
 main_window_init (MainWindow *self)
 {
   GSimpleActionGroup *actions;
@@ -1217,6 +1282,10 @@ main_window_init (MainWindow *self)
     { "refresh", on_refresh_action, NULL, NULL, NULL, {0} },
     { "select-all", on_select_all_action, NULL, NULL, NULL, {0} },
     { "select-all-global", on_select_all_global_action, NULL, NULL, NULL, {0} },
+    { "search-toggle", on_search_toggle_action, NULL, NULL, NULL, {0} },
+    { "remove-apps", on_remove_apps_action, NULL, NULL, NULL, {0} },
+    { "cancel", on_cancel_action, NULL, NULL, NULL, {0} },
+    { "focus-device", on_focus_device_action, NULL, NULL, NULL, {0} },
   };
 
   gtk_widget_init_template (GTK_WIDGET (self));

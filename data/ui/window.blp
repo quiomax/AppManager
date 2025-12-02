@@ -51,10 +51,11 @@ template $MainWindow: Adw.ApplicationWindow {
       }
 
       [end]
-      Gtk.Button {
+      Gtk.Button remove_button {
         icon-name: "edit-delete-symbolic";
         tooltip-text: "Seçili uygulamaları kaldır (Delete)";
         sensitive: false;
+        action-name: "win.remove-apps";
 
         styles [
           "destructive-action",
@@ -62,9 +63,10 @@ template $MainWindow: Adw.ApplicationWindow {
       }
 
       [end]
-      Gtk.ToggleButton {
+      Gtk.ToggleButton search_toggle {
         icon-name: "edit-find-symbolic";
         tooltip-text: "Ara (Ctrl+F)";
+        action-name: "win.search-toggle";
       }
     }
 
@@ -157,6 +159,7 @@ template $MainWindow: Adw.ApplicationWindow {
                   child: Gtk.ScrolledWindow {
                     Gtk.ListBox unknown_list {
                       selection-mode: none;
+                      show-separators: true;
 
                       styles [
                         "rich-list",
@@ -192,6 +195,7 @@ template $MainWindow: Adw.ApplicationWindow {
                   child: Gtk.ScrolledWindow {
                     Gtk.ListBox malicious_list {
                       selection-mode: none;
+                      show-separators: true;
 
                       styles [
                         "rich-list",
@@ -227,6 +231,7 @@ template $MainWindow: Adw.ApplicationWindow {
                   child: Gtk.ScrolledWindow {
                     Gtk.ListBox safe_list {
                       selection-mode: none;
+                      show-separators: true;
 
                       styles [
                         "rich-list",
@@ -258,6 +263,7 @@ template $MainWindow: Adw.ApplicationWindow {
               child: Gtk.ScrolledWindow {
                 Gtk.ListBox all_list {
                   selection-mode: none;
+                  show-separators: true;
 
                   styles [
                     "rich-list",
