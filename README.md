@@ -6,15 +6,13 @@
 ![License](https://img.shields.io/badge/License-GPL--3.0-green)
 ![Language](https://img.shields.io/badge/Language-C-orange)
 ![GTK](https://img.shields.io/badge/GTK-4%20%7C%20Libadwaita-purple)
+![Vibe Coded](https://img.shields.io/badge/Vibe_Coded-90%-black)
 
 **Easily manage applications on your Android devices connected to your computer**
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Development](#-development) • [License](#-license) • [Türkçe](README-TR.md)
 
 </div>
-
-**Developed with Vibe Coding**
-
 
 ---
 
