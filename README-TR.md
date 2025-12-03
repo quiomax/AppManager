@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/License-GPL--3.0-green)
 ![Language](https://img.shields.io/badge/Language-C-orange)
 ![GTK](https://img.shields.io/badge/GTK-4%20%7C%20Libadwaita-purple)
-![AI ile çok az gözetimle üretildi](https://img.shields.io/badge/AI_ile_çok_az_gözetimli-90%-black)
+![AI](https://img.shields.io/badge/AI%20ile%20%C3%A7ok%20az%20g%C3%B6zetimle%20%C3%BCretildi-90%25-black)
 
 **Bilgisayarınıza bağlı Android cihazlarınızdaki uygulamaları kolayca yönetin**
 
