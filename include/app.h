@@ -1,26 +1,29 @@
 #pragma once
 
-#include <glib.h>
 #include <glib-object.h>
+#include <glib.h>
 
 G_BEGIN_DECLS
 
 #define APP_TYPE_INFO (app_info_get_type ())
 G_DECLARE_FINAL_TYPE (AppInfo, app_info, APP, INFO, GObject)
 
-typedef enum {
+typedef enum
+{
   APP_TYPE_UNKNOWN,
   APP_TYPE_SYSTEM,
   APP_TYPE_USER
 } AppType;
 
-typedef enum {
+typedef enum
+{
   APP_CATEGORY_UNKNOWN,
   APP_CATEGORY_MALICIOUS,
   APP_CATEGORY_SAFE
 } AppCategory;
 
-struct _AppInfo {
+struct _AppInfo
+{
   GObject parent_instance;
   gchar *package_name;
   gchar *label;

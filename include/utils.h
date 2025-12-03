@@ -1,7 +1,7 @@
 #pragma once
 
-#include <glib.h>
 #include "app.h"
+#include <glib.h>
 
 G_BEGIN_DECLS
 
@@ -58,6 +58,8 @@ AppCategory utils_get_app_category (const gchar *package_name);
  *
  * Uygulamanın kategorisini değiştirir ve dosyalara kaydeder.
  */
-void utils_save_app_category (const gchar *package_name, AppCategory old_category, AppCategory new_category);
+void utils_save_app_category (const gchar *package_name,
+                              AppCategory old_category,
+                              AppCategory new_category);
 
 G_END_DECLS

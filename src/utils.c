@@ -1,7 +1,7 @@
 #include "utils.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 
 static GHashTable *app_names_table = NULL;
 
@@ -19,10 +19,12 @@ utils_load_app_names (void)
   if (app_names_table)
     return;
 
-  app_names_table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  app_names_table
+      = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
 
   /* Kullanıcı veri dizini */
-  user_data_path = g_build_filename (g_get_user_data_dir (), "Muha", "AppManager", NULL);
+  user_data_path
+      = g_build_filename (g_get_user_data_dir (), "Muha", "AppManager", NULL);
   user_file_path = g_build_filename (user_data_path, "AppNames.txt", NULL);
 
   /* Geliştirme ortamı dosyası */
@@ -51,14 +53,18 @@ utils_load_app_names (void)
               g_mkdir_with_parents (user_data_path, 0755);
 
               /* Dosyayı kullanıcı dizinine kopyala */
-              if (!g_file_set_contents (user_file_path, dev_content, -1, &error))
+              if (!g_file_set_contents (user_file_path, dev_content, -1,
+                                        &error))
                 {
-                  g_warning ("AppNames.txt kullanıcı dizinine kopyalanamadı: %s", error->message);
+                  g_warning (
+                      "AppNames.txt kullanıcı dizinine kopyalanamadı: %s",
+                      error->message);
                   g_clear_error (&error);
                 }
               else
                 {
-                  g_message ("AppNames.txt kullanıcı dizinine kopyalandı: %s", user_file_path);
+                  g_message ("AppNames.txt kullanıcı dizinine kopyalandı: %s",
+                             user_file_path);
                 }
 
               /* Geliştirme dosyasını kullan */
@@ -66,28 +72,33 @@ utils_load_app_names (void)
             }
           else
             {
-              g_warning ("Geliştirme AppNames.txt okunamadı: %s", error->message);
+              g_warning ("Geliştirme AppNames.txt okunamadı: %s",
+                         error->message);
               g_clear_error (&error);
             }
         }
       else
         {
           /* Hiçbir dosya yok, boş bir dosya oluştur */
-          const gchar *default_content =
-            "# Uygulama İsim Eşlemeleri\n"
-            "# Format: package_name=Display Name\n"
-            "# Bu dosyayı düzenleyerek uygulama isimlerini özelleştirebilirsiniz\n\n";
+          const gchar *default_content
+              = "# Uygulama İsim Eşlemeleri\n"
+                "# Format: package_name=Display Name\n"
+                "# Bu dosyayı düzenleyerek uygulama isimlerini "
+                "özelleştirebilirsiniz\n\n";
 
           g_mkdir_with_parents (user_data_path, 0755);
 
-          if (!g_file_set_contents (user_file_path, default_content, -1, &error))
+          if (!g_file_set_contents (user_file_path, default_content, -1,
+                                    &error))
             {
-              g_warning ("Varsayılan AppNames.txt oluşturulamadı: %s", error->message);
+              g_warning ("Varsayılan AppNames.txt oluşturulamadı: %s",
+                         error->message);
               g_clear_error (&error);
             }
           else
             {
-              g_message ("Varsayılan AppNames.txt oluşturuldu: %s", user_file_path);
+              g_message ("Varsayılan AppNames.txt oluşturuldu: %s",
+                         user_file_path);
             }
         }
     }
@@ -112,7 +123,8 @@ utils_load_app_names (void)
 
               if (key[0] != '\0' && value[0] != '\0')
                 {
-                  g_hash_table_insert (app_names_table, g_strdup (key), g_strdup (value));
+                  g_hash_table_insert (app_names_table, g_strdup (key),
+                                       g_strdup (value));
                 }
             }
           g_strfreev (parts);
@@ -146,7 +158,11 @@ format_package_name (const gchar *package_name)
 
       gchar *candidate = parts[len - 1];
 
-      if (len > 1 && (g_str_equal (candidate, "android") || g_str_equal (candidate, "app") || g_str_equal (candidate, "client") || g_str_equal (candidate, "mobile")))
+      if (len > 1
+          && (g_str_equal (candidate, "android")
+              || g_str_equal (candidate, "app")
+              || g_str_equal (candidate, "client")
+              || g_str_equal (candidate, "mobile")))
         {
           candidate = parts[len - 2];
         }
@@ -200,7 +216,8 @@ load_app_list_file (const gchar *filename, GHashTable **set_ptr)
   *set_ptr = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
   /* Kullanıcı veri dizini */
-  user_data_path = g_build_filename (g_get_user_data_dir (), "Muha", "AppManager", NULL);
+  user_data_path
+      = g_build_filename (g_get_user_data_dir (), "Muha", "AppManager", NULL);
   user_file_path = g_build_filename (user_data_path, filename, NULL);
 
   /* Geliştirme ortamı dosyası */
@@ -226,41 +243,48 @@ load_app_list_file (const gchar *filename, GHashTable **set_ptr)
             {
               g_mkdir_with_parents (user_data_path, 0755);
 
-              if (!g_file_set_contents (user_file_path, dev_content, -1, &error))
+              if (!g_file_set_contents (user_file_path, dev_content, -1,
+                                        &error))
                 {
-                  g_warning ("%s kullanıcı dizinine kopyalanamadı: %s", filename, error->message);
+                  g_warning ("%s kullanıcı dizinine kopyalanamadı: %s",
+                             filename, error->message);
                   g_clear_error (&error);
                 }
               else
                 {
-                  g_message ("%s kullanıcı dizinine kopyalandı: %s", filename, user_file_path);
+                  g_message ("%s kullanıcı dizinine kopyalandı: %s", filename,
+                             user_file_path);
                 }
 
               content = dev_content;
             }
           else
             {
-              g_warning ("Geliştirme %s okunamadı: %s", filename, error->message);
+              g_warning ("Geliştirme %s okunamadı: %s", filename,
+                         error->message);
               g_clear_error (&error);
             }
         }
       else
         {
           /* Hiçbir dosya yok, boş bir dosya oluştur */
-          const gchar *default_content =
-            "# Uygulama Listesi\n"
-            "# Format: Her satırda bir paket adı\n\n";
+          const gchar *default_content
+              = "# Uygulama Listesi\n"
+                "# Format: Her satırda bir paket adı\n\n";
 
           g_mkdir_with_parents (user_data_path, 0755);
 
-          if (!g_file_set_contents (user_file_path, default_content, -1, &error))
+          if (!g_file_set_contents (user_file_path, default_content, -1,
+                                    &error))
             {
-              g_warning ("Varsayılan %s oluşturulamadı: %s", filename, error->message);
+              g_warning ("Varsayılan %s oluşturulamadı: %s", filename,
+                         error->message);
               g_clear_error (&error);
             }
           else
             {
-              g_message ("Varsayılan %s oluşturuldu: %s", filename, user_file_path);
+              g_message ("Varsayılan %s oluşturuldu: %s", filename,
+                         user_file_path);
             }
         }
     }
@@ -310,7 +334,8 @@ utils_get_app_category (const gchar *package_name)
 }
 
 void
-utils_save_app_category (const gchar *package_name, AppCategory old_category, AppCategory new_category)
+utils_save_app_category (const gchar *package_name, AppCategory old_category,
+                         AppCategory new_category)
 {
   if (!malicious_apps_set || !safe_apps_set)
     utils_load_app_categories ();
@@ -328,12 +353,15 @@ utils_save_app_category (const gchar *package_name, AppCategory old_category, Ap
     g_hash_table_add (safe_apps_set, g_strdup (package_name));
 
   /* Dosyalara kaydet */
-  gchar *user_data_path = g_build_filename (g_get_user_data_dir (), "Muha", "AppManager", NULL);
-  gchar *malicious_file = g_build_filename (user_data_path, "MaliciousApps.txt", NULL);
+  gchar *user_data_path
+      = g_build_filename (g_get_user_data_dir (), "Muha", "AppManager", NULL);
+  gchar *malicious_file
+      = g_build_filename (user_data_path, "MaliciousApps.txt", NULL);
   gchar *safe_file = g_build_filename (user_data_path, "SafeApps.txt", NULL);
 
   /* MaliciousApps.txt dosyasını yaz */
-  GString *malicious_content = g_string_new ("# Zararlı Uygulama Listesi\n# Format: Her satırda bir paket adı\n\n");
+  GString *malicious_content = g_string_new (
+      "# Zararlı Uygulama Listesi\n# Format: Her satırda bir paket adı\n\n");
   GHashTableIter iter;
   gpointer key;
 
@@ -347,7 +375,8 @@ utils_save_app_category (const gchar *package_name, AppCategory old_category, Ap
   g_string_free (malicious_content, TRUE);
 
   /* SafeApps.txt dosyasını yaz */
-  GString *safe_content = g_string_new ("# Güvenli Uygulama Listesi\n# Format: Her satırda bir paket adı\n\n");
+  GString *safe_content = g_string_new (
+      "# Güvenli Uygulama Listesi\n# Format: Her satırda bir paket adı\n\n");
 
   g_hash_table_iter_init (&iter, safe_apps_set);
   while (g_hash_table_iter_next (&iter, &key, NULL))
