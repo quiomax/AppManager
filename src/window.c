@@ -22,6 +22,7 @@ struct _AppDetailsDialog
   GtkButton *uninstall_button;
   GtkButton *backup_button;
   GtkButton *freeze_button;
+  GtkButton *google_play_button;
   GtkLabel *category_label;
   GtkStack *content_stack;
 
@@ -64,11 +65,13 @@ app_details_dialog_class_init (AppDetailsDialogClass *klass)
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, freeze_button);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, category_label);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, content_stack);
+  gtk_widget_class_bind_template_child(widget_class, AppDetailsDialog, google_play_button);
 }
 
 static void on_uninstall_button_clicked (GtkButton *button, gpointer user_data);
 static void on_backup_button_clicked (GtkButton *button, gpointer user_data);
 static void on_freeze_button_clicked (GtkButton *button, gpointer user_data);
+static void on_google_play_button_clicked (GtkButton *button, gpointer user_data);
 
 static void
 app_details_dialog_init (AppDetailsDialog *self)
@@ -89,12 +92,14 @@ app_details_dialog_init (AppDetailsDialog *self)
     {
       g_signal_connect (self->freeze_button, "clicked", G_CALLBACK (on_freeze_button_clicked), self);
     }
+
+  if (self->google_play_button) {
+    g_signal_connect(self->google_play_button, "clicked",
+                     G_CALLBACK(on_google_play_button_clicked), self);
+  }
 }
 
-
-
-static void
-on_details_loaded (GObject      *source_object G_GNUC_UNUSED,
+static void on_details_loaded (GObject      *source_object G_GNUC_UNUSED,
                    GAsyncResult *result,
                    gpointer      user_data)
 {
@@ -2248,4 +2253,29 @@ GtkWindow *
 main_window_new (GtkApplication *app)
 {
   return g_object_new (MAIN_TYPE_WINDOW, "application", app, NULL);
+}
+
+static void on_google_play_button_clicked(GtkButton *button G_GNUC_UNUSED,
+                                          gpointer user_data) {
+  AppDetailsDialog *self = APP_DETAILS_DIALOG(user_data);
+
+  if (!self->app_info) {
+    g_warning("Google Play Store butonuna tıklandı ancak app_info NULL");
+    return;
+  }
+
+  const gchar *package_name = app_info_get_package_name(self->app_info);
+  if (!package_name) {
+    g_warning("Google Play Store butonuna tıklandı ancak package_name NULL");
+    return;
+  }
+
+  /* Google Play Store URL'si oluştur */
+  gchar *url = g_strdup_printf(
+      "https://play.google.com/store/apps/details?id=%s", package_name);
+
+  /* Web tarayıcısını aç */
+  g_app_info_launch_default_for_uri(url, NULL, NULL);
+
+  g_free(url);
 }
