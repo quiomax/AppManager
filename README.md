@@ -1,6 +1,6 @@
-# Android App Manager (MuhaAppManager)
 
 <div align="center">
+<h1>Android App Manager (MuhaAppManager)</h1>
 
 ![Android App Manager](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-blue)
 ![License](https://img.shields.io/badge/License-GPL--3.0-green)
