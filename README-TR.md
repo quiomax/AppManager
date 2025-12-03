@@ -1,4 +1,3 @@
-
 <div align="center">
 <h1>Android Uygulama Yöneticisi (MuhaAppManager)</h1>
 

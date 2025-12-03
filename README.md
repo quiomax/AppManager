@@ -1,4 +1,3 @@
-
 <div align="center">
 <h1>Android App Manager (MuhaAppManager)</h1>
 
