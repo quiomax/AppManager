@@ -9,9 +9,12 @@
 
 **Bilgisayarınıza bağlı Android cihazlarınızdaki uygulamaları kolayca yönetin**
 
-[Özellikler](#-özellikler) • [Kurulum](#-kurulum) • [Kullanım](#-kullanım) • [Geliştirme](#-geliştirme) • [Lisans](#-lisans)
+[Özellikler](#-özellikler) • [Kurulum](#-kurulum) • [Kullanım](#-kullanım) • [Geliştirme](#-geliştirme) • [Lisans](#-lisans) • [English](README.md)
 
 </div>
+
+**AI ile çok az gözetimle üretildi**
+
 
 ---
 

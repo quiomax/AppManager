@@ -9,9 +9,12 @@
 
 **Easily manage applications on your Android devices connected to your computer**
 
-[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Development](#-development) • [License](#-license)
+[Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Development](#-development) • [License](#-license) • [Türkçe](README-TR.md)
 
 </div>
+
+**Developed with Vibe Coding**
+
 
 ---
 
