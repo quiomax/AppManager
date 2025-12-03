@@ -480,14 +480,22 @@ on_devices_loaded (GObject *source_object G_GNUC_UNUSED, GAsyncResult *result,
       gtk_stack_set_visible_child_name (self->main_stack, "no-device");
       /* TODO: Hata mesajını arayüzde göster */
       gtk_drop_down_set_model (self->device_dropdown, NULL);
+      /* Cihaz bulunamadığında düğmeleri devre dışı bırak */
       gtk_widget_set_sensitive (GTK_WIDGET (self->device_dropdown), FALSE);
+      gtk_widget_set_sensitive (GTK_WIDGET (self->select_button), FALSE);
+      gtk_widget_set_sensitive (GTK_WIDGET (self->search_toggle), FALSE);
+      gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button), FALSE);
       g_object_unref (string_list);
     }
   else if (devices == NULL)
     {
       gtk_stack_set_visible_child_name (self->main_stack, "no-device");
       gtk_drop_down_set_model (self->device_dropdown, NULL);
+      /* Cihaz bulunamadığında düğmeleri devre dışı bırak */
       gtk_widget_set_sensitive (GTK_WIDGET (self->device_dropdown), FALSE);
+      gtk_widget_set_sensitive (GTK_WIDGET (self->select_button), FALSE);
+      gtk_widget_set_sensitive (GTK_WIDGET (self->search_toggle), FALSE);
+      gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button), FALSE);
       g_object_unref (string_list);
     }
   else
@@ -528,10 +536,14 @@ on_devices_loaded (GObject *source_object G_GNUC_UNUSED, GAsyncResult *result,
         }
       else
         {
-          gtk_drop_down_set_model (self->device_dropdown,
-                                   NULL); /* Modeli temizle */
-          gtk_widget_set_sensitive (GTK_WIDGET (self->device_dropdown), FALSE);
+          /* Modeli temizle */
+          gtk_drop_down_set_model (self->device_dropdown, NULL);
           gtk_stack_set_visible_child_name (self->main_stack, "no-device");
+          /* Cihaz bulunamadığında düğmeleri devre dışı bırak */
+          gtk_widget_set_sensitive (GTK_WIDGET (self->device_dropdown), FALSE);
+          gtk_widget_set_sensitive (GTK_WIDGET (self->select_button), FALSE);
+          gtk_widget_set_sensitive (GTK_WIDGET (self->search_toggle), FALSE);
+          gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button), FALSE);
         }
 
       g_object_unref (string_list);
@@ -1554,11 +1566,27 @@ on_device_selected (GtkDropDown *dropdown, GParamSpec *pspec G_GNUC_UNUSED,
             {
               gtk_stack_set_visible_child_name (self->main_stack,
                                                 "unauthorized");
+              /* Yetkisiz cihaz için düğmeleri devre dışı bırak */
+              gtk_widget_set_sensitive (GTK_WIDGET (self->select_button),
+                                        FALSE);
+              gtk_widget_set_sensitive (GTK_WIDGET (self->search_toggle),
+                                        FALSE);
+              gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button),
+                                        FALSE);
             }
           else
             {
               gtk_stack_set_visible_child_name (self->main_stack, "content");
               load_applications (self, serial);
+              /* Yetkili cihaz için düğmeleri etkinleştir */
+              gtk_widget_set_sensitive (GTK_WIDGET (self->select_button),
+                                        TRUE);
+              gtk_widget_set_sensitive (GTK_WIDGET (self->search_toggle),
+                                        TRUE);
+              /* Kaldır düğmesi başlangıçta kapalı, seçim durumuna göre
+               * update_selection_status tarafından güncellenecek */
+              gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button),
+                                        FALSE);
             }
           g_free (serial);
         }
