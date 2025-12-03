@@ -104,6 +104,7 @@ app_info_init (AppInfo *self)
   self->type = APP_TYPE_UNKNOWN;
   self->category = APP_CATEGORY_UNKNOWN;
   self->is_selected = FALSE;
+  self->is_enabled = TRUE;
 }
 
 AppInfo *
@@ -222,4 +223,19 @@ app_info_set_install_date (AppInfo     *self,
   g_return_if_fail (APP_IS_INFO (self));
   g_free (self->install_date);
   self->install_date = g_strdup (install_date);
+}
+
+gboolean
+app_info_get_is_enabled (AppInfo *self)
+{
+  g_return_val_if_fail (APP_IS_INFO (self), TRUE); /* Default to TRUE */
+  return self->is_enabled;
+}
+
+void
+app_info_set_is_enabled (AppInfo *self,
+                         gboolean is_enabled)
+{
+  g_return_if_fail (APP_IS_INFO (self));
+  self->is_enabled = is_enabled;
 }

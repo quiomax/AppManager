@@ -2,89 +2,89 @@ using Gtk 4.0;
 using Adw 1;
 
 Adw.PreferencesDialog preferences_window {
-  title: "Ayarlar";
+  title: _("Ayarlar");
   search-enabled: true;
   content-width: 600;
   content-height: 500;
 
   Adw.PreferencesPage {
-    title: "Genel";
+    title: _("Genel");
     icon-name: "preferences-system-symbolic";
 
     Adw.PreferencesGroup {
-      title: "Görünüm";
-      description: "Arayüz görünüm ayarları";
+      title: _("Görünüm");
+      description: _("Arayüz görünüm ayarları");
 
       Adw.ComboRow theme_row {
-        title: "Tema";
-        subtitle: "Uygulama temasını seçin";
+        title: _("Tema");
+        subtitle: _("Uygulama temasını seçin");
 
         model: Gtk.StringList {
           strings [
-            "Sistem",
-            "Açık",
-            "Koyu",
+            _("Sistem"),
+            _("Açık"),
+            _("Koyu"),
           ]
         };
       }
 
       Adw.ComboRow scale_row {
-        title: "Arayüz Ölçekleme";
-        subtitle: "Tüm arayüz öğelerinin ölçekleme oranı";
+        title: _("Arayüz Ölçekleme");
+        subtitle: _("Tüm arayüz öğelerinin ölçekleme oranı");
 
         model: Gtk.StringList {
           strings [
-            "1x (Normal)",
-            "1.25x",
-            "1.5x",
-            "1.75x",
-            "2x",
-            "2.5x",
-            "3x",
+            _("1x (Normal)"),
+            _("1.25x"),
+            _("1.5x"),
+            _("1.75x"),
+            _("2x"),
+            _("2.5x"),
+            _("3x"),
           ]
         };
       }
 
       Adw.SwitchRow show_app_icons_row {
-        title: "Simgeleri Göster";
-        subtitle: "Uygulama listesinde simgeleri göster";
+        title: _("Simgeleri Göster");
+        subtitle: _("Uygulama listesinde simgeleri göster");
         active: false;
       }
     }
 
     Adw.PreferencesGroup {
-      title: "Uygulama Davranışı";
-      description: "Uygulamanın genel davranış ayarları";
+      title: _("Uygulama Davranışı");
+      description: _("Uygulamanın genel davranış ayarları");
 
       Adw.ComboRow default_startup_tab_row {
-        title: "Varsayılan Başlangıç Sekmesi";
-        subtitle: "Uygulama başladığında gösterilecek sekme";
+        title: _("Varsayılan Başlangıç Sekmesi");
+        subtitle: _("Uygulama başladığında gösterilecek sekme");
 
         model: Gtk.StringList {
           strings [
-            "Tümü",
-            "Güvenilen",
-            "Zararlı",
-            "Bilinmeyen",
+            _("Tümü"),
+            _("Güvenilen"),
+            _("Zararlı"),
+            _("Bilinmeyen"),
           ]
         };
       }
 
       Adw.SwitchRow auto_refresh_row {
-        title: "Otomatik Yenileme";
-        subtitle: "Cihaz bağlandığında otomatik olarak uygulama listesini yenile";
+        title: _("Otomatik Yenileme");
+        subtitle: _("Cihaz bağlandığında otomatik olarak uygulama listesini yenile");
         active: true;
       }
 
       Adw.SwitchRow confirm_uninstall_row {
-        title: "Kaldırma Onayı";
-        subtitle: "Uygulamaları kaldırmadan önce onay iste";
+        title: _("Kaldırma Onayı");
+        subtitle: _("Uygulamaları kaldırmadan önce onay iste");
         active: true;
       }
 
       Adw.SwitchRow switch_to_malicious_row {
-        title: "Sekme Geçişi";
-        subtitle: "Liste yenilendiğinde zararlı uygulama varsa otomatik olarak Zararlı sekmesine geç";
+        title: _("Sekme Geçişi");
+        subtitle: _("Liste yenilendiğinde zararlı uygulama varsa otomatik olarak Zararlı sekmesine geç");
         active: false;
       }
 
@@ -97,17 +97,17 @@ Adw.PreferencesDialog preferences_window {
   }
 
   Adw.PreferencesPage {
-    title: "Araçlar";
+    title: _("Araçlar");
     name: "tools";
     icon-name: "applications-utilities-symbolic";
 
     Adw.PreferencesGroup {
-      title: "Android Araçları";
-      description: "Android geliştirme araçlarının dizin yolları";
+      title: _("Android Araçları");
+      description: _("Android geliştirme araçlarının dizin yolları");
 
       Adw.ActionRow adb_path_row {
-        title: "ADB Dizin Yolu";
-        subtitle: "Android Debug Bridge aracının bulunduğu dizin";
+        title: _("ADB Dizin Yolu");
+        subtitle: _("Android Debug Bridge aracının bulunduğu dizin");
         activatable: true;
 
         [suffix]
@@ -116,7 +116,7 @@ Adw.PreferencesDialog preferences_window {
           spacing: 6;
 
           Gtk.Entry adb_path_entry {
-            placeholder-text: "/usr/bin/adb";
+            placeholder-text: _("/usr/bin/adb");
             hexpand: true;
             valign: center;
             width-chars: 20;
@@ -124,15 +124,15 @@ Adw.PreferencesDialog preferences_window {
 
           Gtk.Button adb_browse_button {
             icon-name: "folder-open-symbolic";
-            tooltip-text: "Gözat";
+            tooltip-text: _("Gözat");
             valign: center;
           }
         }
       }
 
       Adw.ActionRow aapt2_path_row {
-        title: "AAPT2 Dizin Yolu";
-        subtitle: "Android Asset Packaging Tool 2 aracının bulunduğu dizin";
+        title: _("AAPT2 Dizin Yolu");
+        subtitle: _("Android Asset Packaging Tool 2 aracının bulunduğu dizin");
         activatable: true;
 
         [suffix]
@@ -141,7 +141,7 @@ Adw.PreferencesDialog preferences_window {
           spacing: 6;
 
           Gtk.Entry aapt2_path_entry {
-            placeholder-text: "/usr/bin/aapt2";
+            placeholder-text: _("/usr/bin/aapt2");
             hexpand: true;
             valign: center;
             width-chars: 20;
@@ -149,7 +149,7 @@ Adw.PreferencesDialog preferences_window {
 
           Gtk.Button aapt2_browse_button {
             icon-name: "folder-open-symbolic";
-            tooltip-text: "Gözat";
+            tooltip-text: _("Gözat");
             valign: center;
           }
         }
@@ -157,12 +157,12 @@ Adw.PreferencesDialog preferences_window {
     }
 
     Adw.PreferencesGroup {
-      title: "Araç Durumu";
-      description: "Android araçlarının mevcut durumu";
+      title: _("Araç Durumu");
+      description: _("Android araçlarının mevcut durumu");
 
       Adw.ActionRow adb_status_row {
-        title: "ADB Durumu";
-        subtitle: "Android Debug Bridge bağlantı durumu";
+        title: _("ADB Durumu");
+        subtitle: _("Android Debug Bridge bağlantı durumu");
 
         [suffix]
         Gtk.Box {
@@ -170,7 +170,7 @@ Adw.PreferencesDialog preferences_window {
           spacing: 6;
 
           Gtk.Label adb_status_label {
-            label: "Kontrol ediliyor...";
+            label: _("Kontrol ediliyor...");
             valign: center;
             wrap: true;
             max-width-chars: 40;
@@ -178,15 +178,15 @@ Adw.PreferencesDialog preferences_window {
           }
 
           Gtk.Button adb_test_button {
-            label: "Test Et";
+            label: _("Test Et");
             valign: center;
           }
         }
       }
 
       Adw.ActionRow aapt2_status_row {
-        title: "AAPT2 Durumu";
-        subtitle: "Android Asset Packaging Tool durumu";
+        title: _("AAPT2 Durumu");
+        subtitle: _("Android Asset Packaging Tool durumu");
 
         [suffix]
         Gtk.Box {
@@ -194,7 +194,7 @@ Adw.PreferencesDialog preferences_window {
           spacing: 6;
 
           Gtk.Label aapt2_status_label {
-            label: "Kontrol ediliyor...";
+            label: _("Kontrol ediliyor...");
             valign: center;
             wrap: true;
             max-width-chars: 40;
@@ -202,7 +202,7 @@ Adw.PreferencesDialog preferences_window {
           }
 
           Gtk.Button aapt2_test_button {
-            label: "Test Et";
+            label: _("Test Et");
             valign: center;
           }
         }
@@ -211,16 +211,16 @@ Adw.PreferencesDialog preferences_window {
   }
 
   Adw.PreferencesPage {
-    title: "Gelişmiş";
+    title: _("Gelişmiş");
     icon-name: "applications-development-symbolic";
 
     Adw.PreferencesGroup {
-      title: "Performans";
-      description: "Uygulama performans ayarları";
+      title: _("Performans");
+      description: _("Uygulama performans ayarları");
 
       Adw.SpinRow cache_size_row {
-        title: "Önbellek Boyutu";
-        subtitle: "Uygulama simgeleri için önbellek boyutu (MB)";
+        title: _("Önbellek Boyutu");
+        subtitle: _("Uygulama simgeleri için önbellek boyutu (MB)");
 
         adjustment: Gtk.Adjustment {
           lower: 10;
@@ -231,30 +231,30 @@ Adw.PreferencesDialog preferences_window {
       }
 
       Adw.ActionRow clear_cache_row {
-        title: "Önbelleği Temizle";
-        subtitle: "Tüm önbelleği temizle ve alan boşalt";
+        title: _("Önbelleği Temizle");
+        subtitle: _("Tüm önbelleği temizle ve alan boşalt");
         activatable: true;
 
         [suffix]
         Gtk.Button clear_cache_button {
-          label: "Temizle";
+          label: _("Temizle");
           valign: center;
         }
       }
     }
 
     Adw.PreferencesGroup {
-      title: "Sıfırlama";
-      description: "Uygulama ayarlarını sıfırlama seçenekleri";
+      title: _("Sıfırlama");
+      description: _("Uygulama ayarlarını sıfırlama seçenekleri");
 
       Adw.ActionRow reset_settings_row {
-        title: "Ayarları Sıfırla";
-        subtitle: "Tüm ayarları varsayılan değerlere döndür";
+        title: _("Ayarları Sıfırla");
+        subtitle: _("Tüm ayarları varsayılan değerlere döndür");
         activatable: true;
 
         [suffix]
         Gtk.Button reset_settings_button {
-          label: "Sıfırla";
+          label: _("Sıfırla");
           valign: center;
 
           styles [

@@ -31,6 +31,7 @@ struct _AppInfo {
   gchar *size;
   gchar *uid;
   gchar *install_date;
+  gboolean is_enabled;
 };
 
 AppInfo *app_info_new (const gchar *package_name, AppType type);
@@ -52,5 +53,8 @@ void app_info_set_uid (AppInfo *self, const gchar *uid);
 
 const gchar *app_info_get_install_date (AppInfo *self);
 void app_info_set_install_date (AppInfo *self, const gchar *install_date);
+
+gboolean app_info_get_is_enabled (AppInfo *self);
+void app_info_set_is_enabled (AppInfo *self, gboolean is_enabled);
 
 G_END_DECLS

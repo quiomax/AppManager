@@ -21,6 +21,7 @@ struct _AppDetailsDialog
   AdwActionRow *install_date;
   GtkButton *uninstall_button;
   GtkButton *backup_button;
+  GtkButton *freeze_button;
   GtkLabel *category_label;
   GtkStack *content_stack;
 
@@ -60,14 +61,34 @@ app_details_dialog_class_init (AppDetailsDialogClass *klass)
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, install_date);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, uninstall_button);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, backup_button);
+  gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, freeze_button);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, category_label);
   gtk_widget_class_bind_template_child (widget_class, AppDetailsDialog, content_stack);
 }
+
+static void on_uninstall_button_clicked (GtkButton *button, gpointer user_data);
+static void on_backup_button_clicked (GtkButton *button, gpointer user_data);
+static void on_freeze_button_clicked (GtkButton *button, gpointer user_data);
 
 static void
 app_details_dialog_init (AppDetailsDialog *self)
 {
   gtk_widget_init_template (GTK_WIDGET (self));
+
+  /* Uninstall ve backup butonlarına sinyal bağla */
+  if (self->uninstall_button)
+    {
+      g_signal_connect (self->uninstall_button, "clicked", G_CALLBACK (on_uninstall_button_clicked), self);
+    }
+
+    {
+      g_signal_connect (self->backup_button, "clicked", G_CALLBACK (on_backup_button_clicked), self);
+    }
+
+  if (self->freeze_button)
+    {
+      g_signal_connect (self->freeze_button, "clicked", G_CALLBACK (on_freeze_button_clicked), self);
+    }
 }
 
 
@@ -95,12 +116,30 @@ on_details_loaded (GObject      *source_object G_GNUC_UNUSED,
       if (details->size) app_info_set_size (self->app_info, details->size);
       if (details->uid) app_info_set_uid (self->app_info, details->uid);
       if (details->install_date) app_info_set_install_date (self->app_info, details->install_date);
+      app_info_set_is_enabled (self->app_info, details->is_enabled);
 
       /* UI güncelle */
       adw_action_row_set_subtitle (self->app_version, app_info_get_version (self->app_info) ? app_info_get_version (self->app_info) : "-");
       adw_action_row_set_subtitle (self->app_size, app_info_get_size (self->app_info) ? app_info_get_size (self->app_info) : "-");
       adw_action_row_set_subtitle (self->app_uid, app_info_get_uid (self->app_info) ? app_info_get_uid (self->app_info) : "-");
       adw_action_row_set_subtitle (self->install_date, app_info_get_install_date (self->app_info) ? app_info_get_install_date (self->app_info) : "-");
+
+    if (self->freeze_button) {
+      if (app_info_get_is_enabled(self->app_info)) {
+        gtk_button_set_label(self->freeze_button, "Dondur");
+        gtk_button_set_icon_name(self->freeze_button,
+                                 "media-playback-pause-symbolic");
+        gtk_widget_set_tooltip_text(
+            GTK_WIDGET(self->freeze_button),
+            "Uygulamayı devre dışı bırakmak için tıkla");
+      } else {
+        gtk_button_set_label(self->freeze_button, "Etkinleştir");
+        gtk_button_set_icon_name(self->freeze_button,
+                                 "media-playback-start-symbolic");
+        gtk_widget_set_tooltip_text(GTK_WIDGET(self->freeze_button),
+                                    "Uygulamayı etkinleştirmek için tıkla");
+      }
+    }
 
       adb_package_details_free (details);
     }
@@ -166,6 +205,7 @@ struct _MainWindow
 {
   AdwApplicationWindow parent_instance;
 
+  AdwToastOverlay *toast_overlay;
   GtkDropDown *device_dropdown;
   GtkStack *main_stack;
   GtkStack *content_stack;
@@ -209,6 +249,7 @@ main_window_class_init (MainWindowClass *klass)
 
   gtk_widget_class_set_template_from_resource (widget_class, "/com/muha/AppManager/ui/window.ui");
 
+  gtk_widget_class_bind_template_child (widget_class, MainWindow, toast_overlay);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, device_dropdown);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, main_stack);
   gtk_widget_class_bind_template_child (widget_class, MainWindow, content_stack);
@@ -528,9 +569,9 @@ update_button_labels (MainWindow *self)
   /* Menüdeki "Herşeyi Seç" eylemini güncelle */
   const gchar *label;
   if (any_selected_global)
-    label = "Tüm Seçimi Temizle (Ctrl+Shift+A)";
+    label = "Tüm Seçimi Temizle";
   else
-    label = "Herşeyi Seç (Ctrl+Shift+A)";
+    label = "Herşeyi Seç";
 
   GMenu *menu = g_menu_new ();
   g_menu_append (menu, label, "win.select-all-global");
@@ -580,10 +621,40 @@ update_selection_status (MainWindow *self)
   gtk_label_set_text (self->safe_label, safe_text);
   gtk_label_set_text (self->total_label, total_text);
 
-  /* Kaldır düğmesini seçili uygulama varsa etkinleştir, yoksa devre dışı bırak */
+  /* Kaldır düğmesini SADECE görüntülenen kategoride seçili öge varsa etkinleştir */
+  guint current_view_selected_count = 0;
+  GtkListBox *current_list = NULL;
+  const gchar *visible_child = gtk_stack_get_visible_child_name (self->content_stack);
+
+  if (g_str_equal (visible_child, "all"))
+    current_list = self->all_list;
+  else if (g_str_equal (visible_child, "safe"))
+    current_list = self->safe_list;
+  else if (g_str_equal (visible_child, "malicious"))
+    current_list = self->malicious_list;
+  else if (g_str_equal (visible_child, "unknown"))
+    current_list = self->unknown_list;
+
+  if (current_list)
+    {
+      for (child = gtk_widget_get_first_child (GTK_WIDGET (current_list));
+           child != NULL;
+           child = gtk_widget_get_next_sibling (child))
+        {
+          if (!ADW_IS_ACTION_ROW (child))
+            continue;
+
+          GtkWidget *checkbox = g_object_get_data (G_OBJECT (child), "selection-checkbox");
+          if (checkbox && gtk_check_button_get_active (GTK_CHECK_BUTTON (checkbox)))
+            {
+              current_view_selected_count++;
+            }
+        }
+    }
+
   if (self->remove_button)
     {
-      gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button), selected_count > 0);
+      gtk_widget_set_sensitive (GTK_WIDGET (self->remove_button), current_view_selected_count > 0);
     }
 
   update_button_labels (self);
@@ -898,15 +969,49 @@ on_app_toggled (GtkCheckButton *check,
     }
 }
 
-static void
-populate_app_list (MainWindow *self, GList *packages)
-{
-  GList *l;
+typedef struct {
+ MainWindow *self;
+ gchar *serial;
+ GList *user_apps; /* AppInfo listesi */
+  gchar *previous_stack_child; /* Yükleme öncesi content_stack'in görünür çocuğu */
+} LoadAppsData;
 
-  /* Listeyi doldur */
-  for (l = packages; l != NULL; l = l->next)
+typedef struct {
+ MainWindow *self;
+ GList *apps_to_populate;
+  GList *current_app;
+  guint batch_size;
+  guint processed_count;
+} BatchPopulateData;
+
+static gpointer
+app_info_copy_func (gconstpointer src,
+                    gpointer user_data G_GNUC_UNUSED)
+{
+  return g_object_ref ((gpointer)src);
+}
+
+static void
+batch_populate_data_free (BatchPopulateData *data)
+{
+  if (data->apps_to_populate)
+    g_list_free_full (data->apps_to_populate, g_object_unref);
+  g_free (data);
+}
+
+static gboolean
+batch_populate_apps_cb (gpointer user_data)
+{
+ BatchPopulateData *batch_data = user_data;
+  MainWindow *self = batch_data->self;
+
+  guint count = 0;
+  GList *current = batch_data->current_app;
+
+  /* Batch size kadar uygulama oluştur */
+  while (current && count < batch_data->batch_size)
     {
-      AppInfo *app = l->data;
+      AppInfo *app = current->data;
       AppCategory category = app_info_get_category (app);
 
       /* Her kategori için ayrı row oluştur */
@@ -1020,36 +1125,70 @@ populate_app_list (MainWindow *self, GList *packages)
 
           gtk_list_box_append (target_lists[i], GTK_WIDGET (row));
         }
+
+      current = current->next;
+      count++;
+      batch_data->processed_count++;
     }
 
+ batch_data->current_app = current;
+
   /* Boş liste kontrolü - stack'leri güncelle */
-  gboolean has_unknown = FALSE;
-  gboolean has_malicious = FALSE;
-  gboolean has_safe = FALSE;
-  GtkWidget *child;
-
-  child = gtk_widget_get_first_child (GTK_WIDGET (self->unknown_list));
-  has_unknown = (child != NULL);
-
-  child = gtk_widget_get_first_child (GTK_WIDGET (self->malicious_list));
-  has_malicious = (child != NULL);
-
-  child = gtk_widget_get_first_child (GTK_WIDGET (self->safe_list));
-  has_safe = (child != NULL);
+  gboolean has_unknown = gtk_widget_get_first_child (GTK_WIDGET (self->unknown_list)) != NULL;
+  gboolean has_malicious = gtk_widget_get_first_child (GTK_WIDGET (self->malicious_list)) != NULL;
+ gboolean has_safe = gtk_widget_get_first_child (GTK_WIDGET (self->safe_list)) != NULL;
 
   gtk_stack_set_visible_child_name (self->unknown_stack, has_unknown ? "list" : "empty");
   gtk_stack_set_visible_child_name (self->malicious_stack, has_malicious ? "list" : "empty");
   gtk_stack_set_visible_child_name (self->safe_stack, has_safe ? "list" : "empty");
 
   update_selection_status (self);
+
+  /* Devam edecek mi? */
+  if (current != NULL)
+    {
+      /* Bir sonraki idle döngüsünde devam et */
+      return G_SOURCE_CONTINUE;
+    }
+ else
+    {
+      /* İşlem tamamlandı, stack durumunu güncelle */
+      LoadAppsData *load_data = g_object_get_data (G_OBJECT (self), "load_apps_data");
+      if (load_data && load_data->previous_stack_child)
+        {
+          gtk_stack_set_visible_child_name (self->content_stack, load_data->previous_stack_child);
+        }
+      else
+        {
+          gtk_stack_set_visible_child_name (self->content_stack, "all");
+        }
+
+      /* Belleği temizle */
+      g_object_set_data (G_OBJECT (self), "load_apps_data", NULL);
+      batch_populate_data_free (batch_data);
+      return G_SOURCE_REMOVE;
+    }
 }
 
-typedef struct {
-  MainWindow *self;
-  gchar *serial;
-  GList *user_apps; /* AppInfo listesi */
-  gchar *previous_stack_child; /* Yükleme öncesi content_stack'in görünür çocuğu */
-} LoadAppsData;
+static void
+start_batch_populate (MainWindow *self, GList *apps)
+{
+  if (!apps)
+    return;
+
+  BatchPopulateData *batch_data = g_new0 (BatchPopulateData, 1);
+  batch_data->self = self;
+  batch_data->apps_to_populate = g_list_copy_deep (apps, app_info_copy_func, NULL);
+  batch_data->current_app = batch_data->apps_to_populate;
+  batch_data->batch_size = 10; /* Her seferde 10 uygulama */
+  batch_data->processed_count = 0;
+
+  /* Batch populate işlemini idle source olarak ekle */
+  guint source_id = g_idle_add (batch_populate_apps_cb, batch_data);
+
+  /* MainWindow'a referans ekle ki işlem bitene kadar nesne hayatta kalsın */
+  g_object_set_data (G_OBJECT (self), "batch_populate_source", GUINT_TO_POINTER (source_id));
+}
 
 static void
 load_apps_data_free (LoadAppsData *data)
@@ -1096,25 +1235,20 @@ on_system_packages_loaded (GObject      *source_object G_GNUC_UNUSED,
       g_list_free_full (pkg_names, g_free);
     }
 
-  /* Kullanıcı ve sistem uygulamalarını birleştir */
+ /* Kullanıcı ve sistem uygulamalarını birleştir */
   /* Not: data->user_apps sahipliğini alıyoruz, data_free'de double-free olmamalı.
      Bu yüzden data->user_apps'i NULL yapıyoruz. */
   all_apps = g_list_concat (data->user_apps, system_apps);
   data->user_apps = NULL;
 
-  populate_app_list (self, all_apps);
+ /* MainWindow'a LoadAppsData referansı ekle */
+  g_object_set_data_full (G_OBJECT (self), "load_apps_data", data, (GDestroyNotify)load_apps_data_free);
 
-  /* all_apps listesindeki AppInfo'lar populate_app_list içinde row'lara ref ile bağlandı.
-     Burada listeyi temizlerken unref yapmalıyız. */
+  /* Batch populate işlemini başlat */
+  start_batch_populate (self, all_apps);
+
+  /* all_apps listesini burada temizle, çünkü start_batch_populate içinde kopyalandı */
   g_list_free_full (all_apps, g_object_unref);
-
-  /* Yükleme bitti, listeyi göster */
-  if (data->previous_stack_child)
-    gtk_stack_set_visible_child_name (self->content_stack, data->previous_stack_child);
-  else
-    gtk_stack_set_visible_child_name (self->content_stack, "all");
-
-  load_apps_data_free (data);
 }
 
 static void
@@ -1181,6 +1315,37 @@ load_applications (MainWindow *self, const gchar *serial)
   adb_get_packages_async (serial, "-3", NULL, on_user_packages_loaded, data);
 }
 
+static gchar *
+parse_serial_from_device_string (const gchar *device_string)
+{
+  if (!device_string)
+    return NULL;
+
+  gboolean is_unauthorized = g_str_has_suffix (device_string, "(Yetkisiz)");
+  gchar *temp_string = g_strdup (device_string);
+
+  if (is_unauthorized)
+    {
+      gchar *unauth_pos = g_strrstr (temp_string, " (Yetkisiz)");
+      if (unauth_pos)
+        *unauth_pos = '\0';
+    }
+
+  char *last_open_paren = strrchr (temp_string, '(');
+  char *last_close_paren = strrchr (temp_string, ')');
+  gchar *serial = NULL;
+
+  if (last_open_paren && last_close_paren && last_close_paren > last_open_paren)
+    {
+      *last_close_paren = '\0';
+      serial = g_strdup (last_open_paren + 1);
+    }
+
+  g_free (temp_string);
+  return serial;
+}
+
+
 static void
 on_device_selected (GtkDropDown *dropdown,
                     GParamSpec  *pspec G_GNUC_UNUSED,
@@ -1208,50 +1373,26 @@ on_device_selected (GtkDropDown *dropdown,
   if (selected_string)
     {
       gboolean is_unauthorized = g_str_has_suffix (selected_string, "(Yetkisiz)");
+      gchar *serial = parse_serial_from_device_string (selected_string);
 
-      /* Serial'ı bulmak için string'i parse et */
-      /* Format: "Model (Serial)" veya "Model (Serial) (Yetkisiz)" */
-
-      /* Sondan başa doğru ilk '(' karakterini bul */
-      /* Eğer yetkisiz ise, sondaki "(Yetkisiz)" kısmını atla */
-
-      gchar *temp_string = g_strdup (selected_string);
-      if (is_unauthorized)
+      if (serial)
         {
-          gchar *unauth_pos = g_strrstr (temp_string, " (Yetkisiz)");
-          if (unauth_pos)
-            *unauth_pos = '\0';
-        }
-
-      /* Şimdi format "Model (Serial)" olmalı. Son '(' ve son ')' arasını al */
-      char *last_open_paren = strrchr (temp_string, '(');
-      char *last_close_paren = strrchr (temp_string, ')');
-
-      if (last_open_paren && last_close_paren && last_close_paren > last_open_paren)
-        {
-          /* Parantezlerin içi serial */
-          *last_close_paren = '\0';
-          gchar *serial = g_strdup (last_open_paren + 1);
-
           if (is_unauthorized)
             {
-               gtk_stack_set_visible_child_name (self->main_stack, "unauthorized");
+              gtk_stack_set_visible_child_name (self->main_stack, "unauthorized");
             }
           else
             {
-               gtk_stack_set_visible_child_name (self->main_stack, "content");
-               load_applications (self, serial);
+              gtk_stack_set_visible_child_name (self->main_stack, "content");
+              load_applications (self, serial);
             }
           g_free (serial);
         }
       else
         {
-          /* Parse edilemedi */
           g_warning ("Cihaz stringi parse edilemedi: %s", selected_string);
           gtk_stack_set_visible_child_name (self->main_stack, "no-device");
         }
-
-      g_free (temp_string);
     }
 }
 
@@ -1270,19 +1411,679 @@ on_search_toggle_action (GSimpleAction *action G_GNUC_UNUSED,
 }
 
 static void
-on_remove_apps_action (GSimpleAction *action G_GNUC_UNUSED,
-                       GVariant      *parameter G_GNUC_UNUSED,
-                       gpointer       user_data)
+on_uninstall_finished (GObject      *source_object G_GNUC_UNUSED,
+                       GAsyncResult *result,
+                       gpointer      user_data)
+{
+  AdbOperationResult *op_result = adb_uninstall_package_finish (result, NULL);
+  AppDetailsDialog *dialog = APP_DETAILS_DIALOG (user_data);
+
+  if (op_result && op_result->success)
+    {
+      g_debug ("Uygulama kaldırma başarılı: %s", op_result->message);
+
+      /* Toast bildirimi göster */
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+      if (main_window && main_window->toast_overlay)
+        {
+          AdwToast *toast = adw_toast_new ("Uygulama başarıyla kaldırıldı");
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+
+          /* Listeyi yenile */
+          refresh_devices (main_window);
+        }
+
+      /* Dialog'ı kapat */
+      adw_dialog_close (ADW_DIALOG (dialog));
+    }
+  else
+    {
+      g_warning ("Uygulama kaldırma başarısız: %s", op_result ? op_result->error_output : "Bilinmeyen hata");
+
+      /* Hata toast'ı göster */
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+      if (main_window && main_window->toast_overlay)
+        {
+          gchar *error_msg = g_strdup_printf ("Kaldırma başarısız: %s",
+                                              op_result && op_result->error_output ? op_result->error_output : "Bilinmeyen hata");
+          AdwToast *toast = adw_toast_new (error_msg);
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+          g_free (error_msg);
+        }
+    }
+
+  if (op_result)
+    adb_operation_result_free (op_result);
+
+  g_object_unref (dialog);
+}
+
+static void
+on_freeze_finished (GObject      *source_object G_GNUC_UNUSED,
+                    GAsyncResult *result,
+                    gpointer      user_data)
+{
+  AdbOperationResult *op_result = adb_freeze_package_finish (result, NULL);
+  AppDetailsDialog *dialog = APP_DETAILS_DIALOG (user_data);
+
+  if (op_result && op_result->success)
+    {
+      g_debug ("Uygulama dondurma başarılı: %s", op_result->message);
+      /* UI güncelle: Etkinleştir butonuna dönüştür */
+      app_info_set_is_enabled (dialog->app_info, FALSE);
+      if (dialog->freeze_button)
+        {
+          gtk_button_set_label (dialog->freeze_button, "Etkinleştir");
+          gtk_button_set_icon_name (dialog->freeze_button, "media-playback-start-symbolic");
+        }
+
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+
+      /* ÖNCE dialog'ı kapat */
+      adw_dialog_close (ADW_DIALOG (dialog));
+
+      /* SONRA toast göster */
+      if (main_window && main_window->toast_overlay)
+        {
+          AdwToast *toast = adw_toast_new ("Uygulama başarıyla donduruldu");
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+        }
+    }
+  else
+    {
+      g_warning ("Uygulama dondurma başarısız: %s", op_result ? op_result->error_output : "Bilinmeyen hata");
+
+      /* Hata toast'ı göster */
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+      if (main_window && main_window->toast_overlay)
+        {
+          gchar *error_msg = g_strdup_printf ("Dondurma başarısız: %s",
+                                              op_result && op_result->error_output ? op_result->error_output : "Bilinmeyen hata");
+          AdwToast *toast = adw_toast_new (error_msg);
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+          g_free (error_msg);
+        }
+    }
+
+  if (op_result)
+    adb_operation_result_free (op_result);
+
+  g_object_unref (dialog);
+}
+
+static void
+on_unfreeze_finished (GObject      *source_object G_GNUC_UNUSED,
+                      GAsyncResult *result,
+                      gpointer      user_data)
+{
+  AdbOperationResult *op_result = adb_unfreeze_package_finish (result, NULL);
+  AppDetailsDialog *dialog = APP_DETAILS_DIALOG (user_data);
+
+  if (op_result && op_result->success)
+    {
+      g_debug ("Uygulama etkinleştirme başarılı: %s", op_result->message);
+      /* UI güncelle: Dondur butonuna dönüştür */
+      app_info_set_is_enabled (dialog->app_info, TRUE);
+      if (dialog->freeze_button)
+        {
+          gtk_button_set_label (dialog->freeze_button, "Dondur");
+          gtk_button_set_icon_name (dialog->freeze_button, "media-playback-pause-symbolic");
+        }
+
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+
+      /* ÖNCE dialog'ı kapat */
+      adw_dialog_close (ADW_DIALOG (dialog));
+
+      /* SONRA toast göster */
+      if (main_window && main_window->toast_overlay)
+        {
+          AdwToast *toast = adw_toast_new ("Uygulama başarıyla etkinleştirildi");
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+        }
+    }
+  else
+    {
+      g_warning ("Uygulama etkinleştirme başarısız: %s", op_result ? op_result->error_output : "Bilinmeyen hata");
+
+      /* Hata toast'ı göster */
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+      if (main_window && main_window->toast_overlay)
+        {
+          gchar *error_msg = g_strdup_printf ("Etkinleştirme başarısız: %s",
+                                              op_result && op_result->error_output ? op_result->error_output : "Bilinmeyen hata");
+          AdwToast *toast = adw_toast_new (error_msg);
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+          g_free (error_msg);
+        }
+    }
+
+  if (op_result)
+    adb_operation_result_free (op_result);
+
+  g_object_unref (dialog);
+}
+
+static void
+perform_freeze_action (AppDetailsDialog *dialog)
+{
+  if (!dialog->app_info || !dialog->serial)
+    return;
+
+  g_object_ref (dialog);
+
+  if (app_info_get_is_enabled (dialog->app_info))
+    {
+      adb_freeze_package_async (dialog->serial,
+                                app_info_get_package_name (dialog->app_info),
+                                NULL,
+                                on_freeze_finished,
+                                dialog);
+    }
+  else
+    {
+      adb_unfreeze_package_async (dialog->serial,
+                                  app_info_get_package_name (dialog->app_info),
+                                  NULL,
+                                  on_unfreeze_finished,
+                                  dialog);
+    }
+}
+
+static void
+on_freeze_confirm_response (AdwAlertDialog *alert_dialog G_GNUC_UNUSED,
+                            gchar          *response,
+                            gpointer        user_data)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (user_data);
+
+  if (g_str_equal (response, "freeze"))
+    {
+      perform_freeze_action (self);
+    }
+
+  /* Dialog ve AppDetailsDialog referanslarını temizle */
+  /* Not: AdwAlertDialog otomatik olarak kapanır */
+  g_object_unref (self);
+}
+
+static void
+on_freeze_button_clicked (GtkButton *button G_GNUC_UNUSED,
+                          gpointer   user_data)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (user_data);
+  MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (self), MAIN_TYPE_WINDOW));
+  gboolean is_enabled = app_info_get_is_enabled (self->app_info);
+  const gchar *action_name = is_enabled ? "Dondur" : "Etkinleştir";
+  const gchar *message = is_enabled
+    ? "Bu uygulamayı dondurmak istediğinize emin misiniz? Uygulama devre dışı bırakılacak ve menüde görünmeyecek."
+    : "Bu uygulamayı etkinleştirmek istediğinize emin misiniz?";
+
+  AdwAlertDialog *dialog = ADW_ALERT_DIALOG (adw_alert_dialog_new (action_name, message));
+
+  adw_alert_dialog_add_response (dialog, "cancel", "İptal");
+  adw_alert_dialog_add_response (dialog, "freeze", action_name);
+
+  adw_alert_dialog_set_response_appearance (dialog, "freeze", is_enabled ? ADW_RESPONSE_DESTRUCTIVE : ADW_RESPONSE_SUGGESTED);
+  adw_alert_dialog_set_default_response (dialog, "cancel");
+  adw_alert_dialog_set_close_response (dialog, "cancel");
+
+  /* Dialog kapanana kadar self'i koru */
+  g_object_ref (self);
+  g_signal_connect (dialog, "response", G_CALLBACK (on_freeze_confirm_response), self);
+
+  adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (main_window));
+}
+
+static void
+perform_uninstall_action (AppDetailsDialog *dialog)
+{
+  if (!dialog->app_info || !dialog->serial)
+    return;
+
+  g_object_ref (dialog);
+  adb_uninstall_package_async (dialog->serial,
+                               app_info_get_package_name (dialog->app_info),
+                               NULL,
+                               on_uninstall_finished,
+                               dialog);
+}
+
+static void
+on_uninstall_confirm_response (AdwAlertDialog *alert_dialog G_GNUC_UNUSED,
+                               gchar          *response,
+                               gpointer        user_data)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (user_data);
+
+  if (g_str_equal (response, "uninstall"))
+    {
+      perform_uninstall_action (self);
+    }
+
+  g_object_unref (self);
+}
+
+static void
+on_uninstall_button_clicked (GtkButton *button  G_GNUC_UNUSED,
+                             gpointer user_data)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (user_data);
+  MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (self), MAIN_TYPE_WINDOW));
+
+  AdwAlertDialog *dialog = ADW_ALERT_DIALOG (adw_alert_dialog_new ("Uygulamayı Kaldır",
+                                                                    "Bu uygulamayı kaldırmak istediğinize emin misiniz? Bu işlem geri alınamaz."));
+
+  adw_alert_dialog_add_response (dialog, "cancel", "İptal");
+  adw_alert_dialog_add_response (dialog, "uninstall", "Kaldır");
+
+  adw_alert_dialog_set_response_appearance (dialog, "uninstall", ADW_RESPONSE_DESTRUCTIVE);
+  adw_alert_dialog_set_default_response (dialog, "cancel");
+  adw_alert_dialog_set_close_response (dialog, "cancel");
+
+  g_object_ref (self);
+  g_signal_connect (dialog, "response", G_CALLBACK (on_uninstall_confirm_response), self);
+
+  adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (main_window));
+}
+
+static void
+on_backup_finished (GObject      *source_object G_GNUC_UNUSED,
+                    GAsyncResult *result,
+                    gpointer      user_data)
+{
+  AdbOperationResult *op_result = adb_backup_package_finish (result, NULL);
+  AppDetailsDialog *dialog = APP_DETAILS_DIALOG (user_data);
+
+  if (op_result && op_result->success)
+    {
+      g_debug ("Yedekleme başarılı: %s", op_result->message);
+
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+
+      /* ÖNCE dialog'ı kapat */
+      adw_dialog_close (ADW_DIALOG (dialog));
+
+      /* SONRA toast göster (dialog kapandıktan sonra görünür olur) */
+      if (main_window && main_window->toast_overlay)
+        {
+          AdwToast *toast = adw_toast_new ("Uygulama başarıyla yedeklendi");
+          adw_toast_set_button_label (toast, "Klasörü Aç");
+          adw_toast_set_action_name (toast, "app.open-backup-folder");
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+        }
+    }
+  else
+    {
+      g_warning ("Yedekleme başarısız: %s", op_result ? op_result->error_output : "Bilinmeyen hata");
+
+      /* Hata toast'ı göster */
+      MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (dialog), MAIN_TYPE_WINDOW));
+      if (main_window && main_window->toast_overlay)
+        {
+          gchar *error_msg = g_strdup_printf ("Yedekleme başarısız: %s",
+                                              op_result && op_result->error_output ? op_result->error_output : "Bilinmeyen hata");
+          AdwToast *toast = adw_toast_new (error_msg);
+          adw_toast_overlay_add_toast (main_window->toast_overlay, toast);
+          g_free (error_msg);
+        }
+    }
+
+  if (op_result)
+    adb_operation_result_free (op_result);
+
+  g_object_unref (dialog);
+}
+
+static void
+perform_backup_action (AppDetailsDialog *dialog)
+{
+  gchar *output_path;
+
+  if (!dialog->app_info || !dialog->serial)
+    return;
+
+  /* XDG-compliant yedekleme dizini */
+  const gchar *docs_dir = g_get_user_special_dir (G_USER_DIRECTORY_DOCUMENTS);
+  if (!docs_dir)
+    docs_dir = g_get_home_dir (); /* Fallback */
+
+  gchar *backup_dir = g_build_filename (docs_dir, "Muha", "AppBackup", NULL);
+  g_mkdir_with_parents (backup_dir, 0755);
+
+  /* Uygulama adını temizle */
+  gchar *app_name = g_strdup (app_info_get_label (dialog->app_info));
+  for (char *p = app_name; *p; p++)
+    {
+      if (*p == '/' || *p == '\\' || *p == ':' || *p == '*' || *p == '?' || *p == '"' || *p == '<' || *p == '>' || *p == '|')
+        *p = '_';
+    }
+
+  /* Dosya adı: UygulamaAdı-Version.apk */
+  const gchar *version = app_info_get_version (dialog->app_info);
+  if (version && *version)
+    output_path = g_strdup_printf ("%s/%s-%s.apk", backup_dir, app_name, version);
+  else
+    output_path = g_strdup_printf ("%s/%s.apk", backup_dir, app_name);
+  g_free (backup_dir);
+  g_free (app_name);
+
+  g_object_ref (dialog);
+
+  adb_backup_package_async (dialog->serial,
+                            app_info_get_package_name (dialog->app_info),
+                            output_path,
+                            NULL,
+                            on_backup_finished,
+                            dialog);
+
+  g_free (output_path);
+}
+
+static void
+on_backup_confirm_response (AdwAlertDialog *alert_dialog G_GNUC_UNUSED,
+                            gchar          *response,
+                            gpointer        user_data)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (user_data);
+
+  if (g_str_equal (response, "backup"))
+    {
+      perform_backup_action (self);
+    }
+
+  g_object_unref (self);
+}
+
+static void
+on_backup_button_clicked (GtkButton *button G_GNUC_UNUSED,
+                          gpointer user_data)
+{
+  AppDetailsDialog *self = APP_DETAILS_DIALOG (user_data);
+  MainWindow *main_window = MAIN_WINDOW (gtk_widget_get_ancestor (GTK_WIDGET (self), MAIN_TYPE_WINDOW));
+
+  AdwAlertDialog *dialog = ADW_ALERT_DIALOG (adw_alert_dialog_new ("Uygulamayı Yedekle",
+                                                                    "Bu uygulamanın APK dosyasını yedeklemek istiyor musunuz?"));
+
+  adw_alert_dialog_add_response (dialog, "cancel", "İptal");
+  adw_alert_dialog_add_response (dialog, "backup", "Yedekle");
+
+  adw_alert_dialog_set_response_appearance (dialog, "backup", ADW_RESPONSE_SUGGESTED);
+  adw_alert_dialog_set_default_response (dialog, "backup");
+  adw_alert_dialog_set_close_response (dialog, "cancel");
+
+  g_object_ref (self);
+  g_signal_connect (dialog, "response", G_CALLBACK (on_backup_confirm_response), self);
+
+  adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (main_window));
+}
+
+typedef struct {
+  MainWindow *window;
+  gint total_count;
+  gint completed_count;
+  gint success_count;
+  gint failure_count;
+} BatchUninstallData;
+
+static void
+batch_uninstall_data_free (BatchUninstallData *data)
+{
+  g_free (data);
+}
+
+static void
+on_batch_remove_finished (GObject      *source_object G_GNUC_UNUSED,
+                          GAsyncResult *result,
+                          gpointer      user_data)
+{
+  BatchUninstallData *batch_data = user_data;
+  AdbOperationResult *op_result = adb_uninstall_package_finish (result, NULL);
+  MainWindow *self = batch_data->window;
+
+  batch_data->completed_count++;
+
+  if (op_result && op_result->success)
+    {
+      batch_data->success_count++;
+      g_debug ("Uygulama kaldırma başarılı: %s", op_result->message);
+    }
+  else
+    {
+      batch_data->failure_count++;
+      g_warning ("Uygulama kaldırma başarısız: %s",
+                 op_result ? op_result->error_output : "Bilinmeyen hata");
+    }
+
+  if (op_result)
+    adb_operation_result_free (op_result);
+
+  /* Tüm işlemler tamamlandı mı? */
+  if (batch_data->completed_count >= batch_data->total_count)
+    {
+      /* Özet toast göster */
+      if (self->toast_overlay)
+        {
+          gchar *message = NULL;
+
+          if (batch_data->failure_count == 0)
+            {
+              message = g_strdup_printf ("%d uygulama başarıyla kaldırıldı",
+                                        batch_data->success_count);
+            }
+          else if (batch_data->success_count == 0)
+            {
+              message = g_strdup_printf ("%d uygulama kaldırılamadı",
+                                        batch_data->failure_count);
+            }
+          else
+            {
+              message = g_strdup_printf ("%d uygulama kaldırıldı, %d başarısız",
+                                        batch_data->success_count,
+                                        batch_data->failure_count);
+            }
+
+          AdwToast *toast = adw_toast_new (message);
+          adw_toast_overlay_add_toast (self->toast_overlay, toast);
+          g_free (message);
+        }
+
+      /* Sadece başarılı işlem varsa listeyi yenile */
+      if (batch_data->success_count > 0)
+        refresh_devices (self);
+
+      /* Yükleme ekranını gizle */
+      gtk_stack_set_visible_child_name (self->content_stack, "all");
+
+      batch_uninstall_data_free (batch_data);
+    }
+}
+
+
+static void
+perform_batch_uninstall (MainWindow *self)
+{
+  GHashTable *unique_apps; /* key: package_name, value: AppInfo */
+  GtkWidget *child;
+
+  /* Cihaz serial'ını al */
+  GtkStringObject *selected_device = gtk_drop_down_get_selected_item (self->device_dropdown);
+  if (!selected_device)
+    return;
+  const gchar *device_string = gtk_string_object_get_string (selected_device);
+  g_autofree gchar *serial = parse_serial_from_device_string (device_string);
+
+  if (!serial)
+    {
+      g_warning ("Cihaz serial numarası parse edilemedi: %s", device_string);
+      return;
+    }
+
+  /* Benzersiz uygulamaları toplamak için hash table */
+  unique_apps = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, g_object_unref);
+
+  /* Tüm listelerdeki seçili uygulamaları topla (benzersiz olarak) */
+  GtkListBox *lists[] = { self->all_list, self->unknown_list, self->malicious_list, self->safe_list };
+  for (int i = 0; i < 4; i++)
+    {
+      for (child = gtk_widget_get_first_child (GTK_WIDGET (lists[i]));
+           child != NULL;
+           child = gtk_widget_get_next_sibling (child))
+        {
+          if (!ADW_IS_ACTION_ROW (child))
+            continue;
+
+          GtkWidget *checkbox = g_object_get_data (G_OBJECT (child), "selection-checkbox");
+          if (checkbox && gtk_check_button_get_active (GTK_CHECK_BUTTON (checkbox)))
+            {
+              AppInfo *app = g_object_get_data (G_OBJECT (child), "app-info");
+              if (app)
+                {
+                  const gchar *pkg_name = app_info_get_package_name (app);
+                  /* Hash table'da yoksa ekle (duplikasyonu önle) */
+                  if (!g_hash_table_contains (unique_apps, pkg_name))
+                    g_hash_table_insert (unique_apps, (gpointer)pkg_name, g_object_ref (app));
+                }
+            }
+        }
+    }
+
+  guint app_count = g_hash_table_size (unique_apps);
+  if (app_count == 0)
+    {
+      g_hash_table_unref (unique_apps);
+      return;
+    }
+
+  /* Batch data oluştur */
+  BatchUninstallData *batch_data = g_new0 (BatchUninstallData, 1);
+  batch_data->window = self;
+  batch_data->total_count = app_count;
+  batch_data->completed_count = 0;
+  batch_data->success_count = 0;
+  batch_data->failure_count = 0;
+
+  /* Yükleme ekranını göster */
+  gtk_stack_set_visible_child_name (self->content_stack, "loading");
+
+  /* Benzersiz uygulamaları kaldır */
+  GHashTableIter iter;
+  gpointer key, value;
+  g_hash_table_iter_init (&iter, unique_apps);
+  while (g_hash_table_iter_next (&iter, &key, &value))
+    {
+      const gchar *pkg_name = key;
+      adb_uninstall_package_async (serial,
+                                   pkg_name,
+                                   NULL,
+                                   on_batch_remove_finished,
+                                   batch_data);
+    }
+
+  g_hash_table_unref (unique_apps);
+}
+
+
+static void
+on_batch_uninstall_confirm_response (AdwAlertDialog *alert_dialog G_GNUC_UNUSED,
+                                      gchar          *response,
+                                      gpointer        user_data)
 {
   MainWindow *self = MAIN_WINDOW (user_data);
 
-  /* TODO: Implement remove apps functionality */
-  /* For now, just activate the button's action if it's sensitive */
-  if (self->remove_button && gtk_widget_get_sensitive (GTK_WIDGET (self->remove_button)))
+  if (g_str_equal (response, "uninstall"))
     {
-      gtk_widget_activate (GTK_WIDGET (self->remove_button));
+      perform_batch_uninstall (self);
     }
+
+  g_object_unref (self);
 }
+
+static void
+on_remove_apps_clicked (GSimpleAction *action G_GNUC_UNUSED,
+                        GVariant      *parameter G_GNUC_UNUSED,
+                        gpointer       user_data)
+{
+  MainWindow *self = MAIN_WINDOW (user_data);
+  GtkWidget *child;
+  GHashTable *unique_apps; /* Benzersiz paket adları için */
+
+  /* Benzersiz uygulamaları saymak ve isimleri toplamak için hash table */
+  unique_apps = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, g_object_unref);
+
+  /* Seçili uygulamaları say (benzersiz olarak) */
+  GtkListBox *lists[] = { self->all_list, self->unknown_list, self->malicious_list, self->safe_list };
+  for (int i = 0; i < 4; i++)
+    {
+      for (child = gtk_widget_get_first_child (GTK_WIDGET (lists[i]));
+           child != NULL;
+           child = gtk_widget_get_next_sibling (child))
+        {
+          if (!ADW_IS_ACTION_ROW (child))
+            continue;
+
+          GtkWidget *checkbox = g_object_get_data (G_OBJECT (child), "selection-checkbox");
+          if (checkbox && gtk_check_button_get_active (GTK_CHECK_BUTTON (checkbox)))
+            {
+              AppInfo *app = g_object_get_data (G_OBJECT (child), "app-info");
+              if (app)
+                {
+                  const gchar *pkg_name = app_info_get_package_name (app);
+                  if (!g_hash_table_contains (unique_apps, pkg_name))
+                    g_hash_table_insert (unique_apps, (gpointer)pkg_name, g_object_ref (app));
+                }
+            }
+        }
+    }
+
+  guint selected_count = g_hash_table_size (unique_apps);
+
+  if (selected_count == 0)
+    {
+      g_hash_table_unref (unique_apps);
+      return;
+    }
+
+  /* Mesajı oluştur */
+  GString *msg_builder = g_string_new ("");
+  g_string_append_printf (msg_builder, "%d uygulamayı kaldırmak istediğine emin misin?\n\n", selected_count);
+
+  GHashTableIter iter;
+  gpointer key, value;
+  g_hash_table_iter_init (&iter, unique_apps);
+
+  int count = 0;
+  while (g_hash_table_iter_next (&iter, &key, &value))
+    {
+      AppInfo *app = value;
+      if (count < 5)
+        g_string_append_printf (msg_builder, "• %s\n", app_info_get_label (app));
+      count++;
+    }
+
+  if (count > 5)
+    g_string_append_printf (msg_builder, "ve %d uygulama daha...", count - 5);
+
+  g_string_append (msg_builder, "\n\nBu işlem geri alınamaz.");
+
+  /* Onay diyalogu göster */
+  AdwAlertDialog *dialog = ADW_ALERT_DIALOG (adw_alert_dialog_new ("Uygulama kaldır", msg_builder->str));
+  g_string_free (msg_builder, TRUE);
+  g_hash_table_unref (unique_apps);
+
+  adw_alert_dialog_add_response (dialog, "cancel", "İptal");
+  adw_alert_dialog_add_response (dialog, "uninstall", "Kaldır");
+
+  adw_alert_dialog_set_response_appearance (dialog, "uninstall", ADW_RESPONSE_DESTRUCTIVE);
+  adw_alert_dialog_set_default_response (dialog, "cancel");
+  adw_alert_dialog_set_close_response (dialog, "cancel");
+
+  g_object_ref (self);
+  g_signal_connect (dialog, "response", G_CALLBACK (on_batch_uninstall_confirm_response), self);
+
+  adw_dialog_present (ADW_DIALOG (dialog), GTK_WIDGET (self));
+}
+
 
 static void
 on_cancel_action (GSimpleAction *action G_GNUC_UNUSED,
@@ -1411,7 +2212,7 @@ main_window_init (MainWindow *self)
     { "select-all", on_select_all_action, NULL, NULL, NULL, {0} },
     { "select-all-global", on_select_all_global_action, NULL, NULL, NULL, {0} },
     { "search-toggle", on_search_toggle_action, NULL, NULL, NULL, {0} },
-    { "remove-apps", on_remove_apps_action, NULL, NULL, NULL, {0} },
+    { "remove-apps", on_remove_apps_clicked, NULL, NULL, NULL, {0} },
     { "cancel", on_cancel_action, NULL, NULL, NULL, {0} },
     { "focus-device", on_focus_device_action, NULL, NULL, NULL, {0} },
   };
@@ -1432,7 +2233,7 @@ main_window_init (MainWindow *self)
 
   /* Sinyal bağlantıları */
   g_signal_connect_swapped (self->content_stack, "notify::visible-child-name",
-                            G_CALLBACK (update_button_labels), self);
+                            G_CALLBACK (update_selection_status), self);
   self->device_handler_id = g_signal_connect (self->device_dropdown, "notify::selected", G_CALLBACK (on_device_selected), self);
   g_signal_connect (self->search_toggle, "toggled", G_CALLBACK (on_search_toggled), self);
   g_signal_connect (self->search_entry, "search-changed", G_CALLBACK (on_search_changed), self);

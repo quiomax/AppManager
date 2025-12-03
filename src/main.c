@@ -26,6 +26,56 @@ on_quit_action (GSimpleAction *action G_GNUC_UNUSED,
 }
 
 static void
+on_launch_finished (GObject      *source_object G_GNUC_UNUSED,
+                    GAsyncResult *result,
+                    gpointer      user_data G_GNUC_UNUSED)
+{
+  GError *error = NULL;
+
+  if (!g_app_info_launch_default_for_uri_finish (result, &error))
+    {
+      g_warning ("Klasör açılamadı: %s", error->message);
+      g_error_free (error);
+    }
+  else
+    {
+      g_debug ("Klasör başarıyla açıldı");
+    }
+}
+
+static void
+on_open_backup_folder_action (GSimpleAction *action G_GNUC_UNUSED,
+                               GVariant      *parameter G_GNUC_UNUSED,
+                               gpointer       user_data G_GNUC_UNUSED)
+{
+  const gchar *docs_dir = g_get_user_special_dir (G_USER_DIRECTORY_DOCUMENTS);
+  if (!docs_dir)
+    docs_dir = g_get_home_dir (); /* Fallback */
+
+  gchar *backup_dir = g_build_filename (docs_dir, "Muha", "AppBackup", NULL);
+
+  /* Ensure directory exists */
+  if (g_mkdir_with_parents (backup_dir, 0755) == -1)
+    g_warning ("Yedekleme dizini oluşturulamadı: %s", backup_dir);
+
+  g_debug ("Yedekleme klasörü açılıyor: %s", backup_dir);
+
+  /* Open in file manager using GLib API (more reliable than GtkUriLauncher for folders) */
+  gchar *uri = g_strdup_printf ("file://%s", backup_dir);
+
+  g_app_info_launch_default_for_uri_async (uri,
+                                           NULL,
+                                           NULL,
+                                           on_launch_finished,
+                                           NULL);
+
+  g_free (uri);
+  g_free (backup_dir);
+}
+
+
+
+static void
 on_startup (GApplication *app)
 {
   GSimpleAction *quit_action;
@@ -43,6 +93,12 @@ on_startup (GApplication *app)
   g_signal_connect (quit_action, "activate", G_CALLBACK (on_quit_action), app);
   g_action_map_add_action (G_ACTION_MAP (app), G_ACTION (quit_action));
   g_object_unref (quit_action);
+
+  /* Create open-backup-folder action */
+  GSimpleAction *open_backup_action = g_simple_action_new ("open-backup-folder", NULL);
+  g_signal_connect (open_backup_action, "activate", G_CALLBACK (on_open_backup_folder_action), app);
+  g_action_map_add_action (G_ACTION_MAP (app), G_ACTION (open_backup_action));
+  g_object_unref (open_backup_action);
 
   /* Set up keyboard accelerators */
   gtk_application_set_accels_for_action (GTK_APPLICATION (app), "app.quit", quit_accels);

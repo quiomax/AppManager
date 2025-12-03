@@ -1,8 +1,8 @@
 using Gtk 4.0;
 using Adw 1;
 
-template $AppDetailsDialog : Adw.Dialog {
-  title: "Uygulama Detayları";
+template $AppDetailsDialog: Adw.Dialog {
+  title: _("Uygulama Detayları");
   content-width: 400;
   content-height: 500;
 
@@ -13,8 +13,10 @@ template $AppDetailsDialog : Adw.Dialog {
     content: Gtk.Stack content_stack {
       Gtk.StackPage {
         name: "loading";
+
         child: Adw.StatusPage {
-          title: "Yükleniyor...";
+          title: _("Yükleniyor...");
+
           child: Gtk.Spinner {
             spinning: true;
             halign: center;
@@ -26,6 +28,7 @@ template $AppDetailsDialog : Adw.Dialog {
 
       Gtk.StackPage {
         name: "details";
+
         child: Gtk.Box {
           orientation: vertical;
           spacing: 12;
@@ -41,35 +44,46 @@ template $AppDetailsDialog : Adw.Dialog {
           }
 
           Gtk.Label app_name {
-            label: "Uygulama Adı";
-            styles ["title-2"]
+            label: _("Uygulama Adı");
+
+            styles [
+              "title-2",
+            ]
+
             halign: center;
             wrap: true;
             justify: center;
           }
 
           Gtk.Label package_name {
-            label: "com.example.app";
-            styles ["caption"]
+            label: _("com.ornekuygulama.app");
+
+            styles [
+              "caption",
+            ]
+
             halign: center;
             selectable: true;
           }
 
           Adw.PreferencesGroup {
             Adw.ActionRow app_version {
-              title: "Versiyon";
+              title: _("Sürüm");
               subtitle: "-";
             }
+
             Adw.ActionRow app_size {
-              title: "Boyut";
+              title: _("Boyut");
               subtitle: "-";
             }
+
             Adw.ActionRow app_uid {
-              title: "UID";
+              title: _("UID");
               subtitle: "-";
             }
+
             Adw.ActionRow install_date {
-              title: "Yükleme Tarihi";
+              title: _("Yükleme Tarihi");
               subtitle: "-";
             }
           }
@@ -81,13 +95,19 @@ template $AppDetailsDialog : Adw.Dialog {
             margin-top: 12;
 
             Gtk.Label {
-                label: "Kategori:";
-                styles ["heading"]
+              label: _("Kategori:");
+
+              styles [
+                "heading",
+              ]
             }
 
             Gtk.Label category_label {
-                label: "Bilinmeyen";
-                styles ["body"]
+              label: _("Bilinmeyen");
+
+              styles [
+                "body",
+              ]
             }
           }
 
@@ -98,14 +118,24 @@ template $AppDetailsDialog : Adw.Dialog {
             margin-top: 12;
 
             Gtk.Button backup_button {
-              label: "Yedekle";
+              label: _("Yedekle");
               icon-name: "document-save-symbolic";
+              tooltip-text: _("Uygulamayı APK olarak yedekle");
+            }
+
+            Gtk.Button freeze_button {
+              label: _("Dondur");
+              icon-name: "media-playback-pause-symbolic";
             }
 
             Gtk.Button uninstall_button {
-              label: "Kaldır";
+              label: _("Kaldır");
               icon-name: "user-trash-symbolic";
-              styles ["destructive-action"]
+              tooltip-text: _("Uygulamayı cihazdan kaldır");
+
+              styles [
+                "destructive-action",
+              ]
             }
           }
         };

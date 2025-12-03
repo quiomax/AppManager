@@ -58,6 +58,16 @@ adb_package_details_free (AdbPackageDetails *details)
   g_free (details);
 }
 
+void
+adb_operation_result_free (AdbOperationResult *result)
+{
+  if (!result)
+    return;
+  g_free (result->message);
+  g_free (result->error_output);
+  g_free (result);
+}
+
 static AdbDevice *
 parse_device_line (const gchar *line_orig)
 {
@@ -466,6 +476,19 @@ adb_get_package_details_thread (GTask        *task,
         details->uid = g_strdup (trimmed + 6);
       else if (g_str_has_prefix (trimmed, "firstInstallTime="))
         details->install_date = g_strdup (trimmed + 17);
+      else if (strstr (trimmed, "User 0:"))
+        {
+          /* "User 0: ... enabled=0 ..." or similar */
+          /* This line is complex, let's look for "enabled=" */
+          gchar *enabled_pos = strstr (trimmed, "enabled=");
+          if (enabled_pos)
+            {
+              int state = atoi (enabled_pos + 8);
+              /* 0: DEFAULT (Enabled), 1: ENABLED, 2: DISABLED, 3: DISABLED_USER, 4: DISABLED_UNTIL_USED */
+              /* We consider 0 and 1 as enabled, others as disabled */
+              details->is_enabled = (state == 0 || state == 1);
+            }
+        }
 
       g_free (line);
     }
@@ -492,6 +515,693 @@ adb_get_package_details_async (const gchar         *serial,
 AdbPackageDetails *
 adb_get_package_details_finish (GAsyncResult  *result,
                                 GError       **error)
+{
+  return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+/* --- Asenkron Uygulama Kaldırma --- */
+
+typedef struct {
+ gchar *serial;
+  gchar *package_name;
+} UninstallPackageData;
+
+static void
+uninstall_package_data_free (UninstallPackageData *data)
+{
+ g_free (data->serial);
+  g_free (data->package_name);
+  g_free (data);
+}
+
+static void
+adb_uninstall_package_thread (GTask        *task,
+                              gpointer      source_object G_GNUC_UNUSED,
+                              gpointer      task_data,
+                              GCancellable *cancellable)
+{
+  UninstallPackageData *data = task_data;
+  g_autofree gchar *adb_path = get_adb_path ();
+  GError *error = NULL;
+  g_autoptr(GSubprocess) proc = NULL;
+  GInputStream *stdout_stream = NULL;
+  g_autoptr(GDataInputStream) data_stream = NULL;
+  AdbOperationResult *result = g_new0 (AdbOperationResult, 1);
+  gchar *line = NULL;
+
+  if (!adb_path)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("ADB bulunamadı");
+      result->error_output = g_strdup ("ADB executable not found in PATH or tools directory");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      return;
+    }
+
+  proc = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_PIPE, &error,
+                           adb_path, "-s", data->serial, "uninstall", data->package_name,
+                           NULL);
+
+  if (!proc)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Komut çalıştırılamadı");
+      result->error_output = g_strdup (error->message);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_error_free (error);
+      return;
+    }
+
+ /* Wait for the process to complete */
+  if (!g_subprocess_wait_check (proc, cancellable, &error))
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("İşlem başarısız oldu");
+      result->error_output = g_strdup (error ? error->message : "Bilinmeyen hata");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_clear_error (&error);
+      return;
+    }
+
+  /* Read stdout to get the result */
+  stdout_stream = g_subprocess_get_stdout_pipe (proc);
+  data_stream = g_data_input_stream_new (stdout_stream);
+
+  GString *output = g_string_new ("");
+  while ((line = g_data_input_stream_read_line_utf8 (data_stream, NULL, NULL, NULL)) != NULL)
+    {
+      if (g_cancellable_is_cancelled (cancellable))
+        {
+          g_free (line);
+          break;
+        }
+      g_string_append (output, line);
+      g_string_append_c (output, '\n');
+      g_free (line);
+    }
+
+  /* Read stderr for error messages */
+  GInputStream *stderr_stream = g_subprocess_get_stderr_pipe (proc);
+  if (stderr_stream)
+    {
+      g_autoptr(GDataInputStream) stderr_data_stream = g_data_input_stream_new (stderr_stream);
+      gchar *stderr_line = NULL;
+      GString *stderr_output = g_string_new ("");
+
+      while ((stderr_line = g_data_input_stream_read_line_utf8 (stderr_data_stream, NULL, NULL, NULL)) != NULL)
+        {
+          g_string_append (stderr_output, stderr_line);
+          g_string_append_c (stderr_output, '\n');
+          g_free (stderr_line);
+        }
+
+      if (stderr_output->len > 0)
+        result->error_output = g_strdup (stderr_output->str);
+      g_string_free (stderr_output, TRUE);
+    }
+
+  /* Check if uninstall was successful */
+  if (g_subprocess_get_exit_status (proc) == 0)
+    {
+      result->success = TRUE;
+      result->message = g_strdup ("Uygulama başarıyla kaldırıldı");
+    }
+  else
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Uygulama kaldırılamadı");
+      if (!result->error_output)
+        result->error_output = g_strdup (output->str);
+    }
+
+  g_string_free (output, TRUE);
+  g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+}
+
+void
+adb_uninstall_package_async (const gchar         *serial,
+                             const gchar         *package_name,
+                             GCancellable        *cancellable,
+                             GAsyncReadyCallback  callback,
+                             gpointer             user_data)
+{
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+  UninstallPackageData *data = g_new0 (UninstallPackageData, 1);
+  data->serial = g_strdup (serial);
+  data->package_name = g_strdup (package_name);
+  g_task_set_task_data (task, data, (GDestroyNotify) uninstall_package_data_free);
+  g_task_run_in_thread (task, adb_uninstall_package_thread);
+  g_object_unref (task);
+}
+
+AdbOperationResult *
+adb_uninstall_package_finish (GAsyncResult  *result,
+                              GError       **error)
+{
+  return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+/* --- Asenkron Uygulama Yedekleme --- */
+
+typedef struct {
+  gchar *serial;
+  gchar *package_name;
+  gchar *output_path;
+} BackupPackageData;
+
+static void
+backup_package_data_free (BackupPackageData *data)
+{
+  g_free (data->serial);
+  g_free (data->package_name);
+  g_free (data->output_path);
+  g_free (data);
+}
+
+static void
+adb_backup_package_thread (GTask        *task,
+                           gpointer      source_object G_GNUC_UNUSED,
+                           gpointer      task_data,
+                           GCancellable *cancellable)
+{
+  BackupPackageData *data = task_data;
+  g_autofree gchar *adb_path = get_adb_path ();
+  GError *error = NULL;
+  g_autoptr(GSubprocess) proc_path = NULL;
+  g_autoptr(GSubprocess) proc_pull = NULL;
+  AdbOperationResult *result = g_new0 (AdbOperationResult, 1);
+  gchar *path_line = NULL;
+  gchar *remote_apk_path = NULL;
+
+  if (!adb_path)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("ADB bulunamadı");
+      result->error_output = g_strdup ("ADB executable not found in PATH or tools directory");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      return;
+    }
+
+  /* 1. Get APK path */
+  proc_path = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE, &error,
+                                adb_path, "-s", data->serial, "shell", "pm", "path", data->package_name,
+                                NULL);
+
+  if (!proc_path)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("APK yolu bulunamadı");
+      result->error_output = g_strdup (error->message);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_error_free (error);
+      return;
+    }
+
+  GInputStream *stdout_stream = g_subprocess_get_stdout_pipe (proc_path);
+  g_autoptr(GDataInputStream) data_stream = g_data_input_stream_new (stdout_stream);
+
+  path_line = g_data_input_stream_read_line_utf8 (data_stream, NULL, NULL, NULL);
+
+  if (!path_line || !g_str_has_prefix (path_line, "package:"))
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("APK yolu alınamadı");
+      result->error_output = g_strdup ("pm path command failed or returned unexpected output");
+      g_free (path_line);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      return;
+    }
+
+  /* "package:/data/app/..." -> "/data/app/..." */
+  remote_apk_path = g_strdup (path_line + 8);
+  g_strstrip (remote_apk_path);
+  g_free (path_line);
+
+  /* 2. Pull APK */
+  proc_pull = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, &error,
+                                adb_path, "-s", data->serial, "pull", remote_apk_path, data->output_path,
+                                NULL);
+
+  g_free (remote_apk_path);
+
+  if (!proc_pull)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Yedekleme komutu çalıştırılamadı");
+      result->error_output = g_strdup (error->message);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_error_free (error);
+      return;
+    }
+
+  /* Wait for the process to complete */
+  if (!g_subprocess_wait_check (proc_pull, cancellable, &error))
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Yedekleme işlemi başarısız oldu");
+      result->error_output = g_strdup (error ? error->message : "Bilinmeyen hata");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_clear_error (&error);
+      return;
+    }
+
+  /* Check if backup was successful */
+  if (g_subprocess_get_exit_status (proc_pull) == 0)
+    {
+      result->success = TRUE;
+      result->message = g_strdup_printf ("%s dosyasına yedekleme tamamlandı", data->output_path);
+    }
+  else
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Yedekleme işlemi başarısız oldu");
+      result->error_output = g_strdup_printf ("Yedekleme işlemi başarısız oldu, çıkış kodu: %d", g_subprocess_get_exit_status (proc_pull));
+    }
+
+  g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+}
+
+void
+adb_backup_package_async (const gchar         *serial,
+                          const gchar         *package_name,
+                          const gchar         *output_path,
+                          GCancellable        *cancellable,
+                          GAsyncReadyCallback  callback,
+                          gpointer             user_data)
+{
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+  BackupPackageData *data = g_new0 (BackupPackageData, 1);
+  data->serial = g_strdup (serial);
+  data->package_name = g_strdup (package_name);
+  data->output_path = g_strdup (output_path);
+  g_task_set_task_data (task, data, (GDestroyNotify) backup_package_data_free);
+  g_task_run_in_thread (task, adb_backup_package_thread);
+  g_object_unref (task);
+}
+
+AdbOperationResult *
+adb_backup_package_finish (GAsyncResult  *result,
+                           GError       **error)
+{
+  return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+/* --- Asenkron Uygulama Kurma --- */
+
+typedef struct {
+  gchar *serial;
+  gchar *apk_path;
+} InstallPackageData;
+
+static void
+install_package_data_free (InstallPackageData *data)
+{
+  g_free (data->serial);
+  g_free (data->apk_path);
+  g_free (data);
+}
+
+static void
+adb_install_package_thread (GTask        *task,
+                            gpointer      source_object G_GNUC_UNUSED,
+                            gpointer      task_data,
+                            GCancellable *cancellable)
+{
+  InstallPackageData *data = task_data;
+  g_autofree gchar *adb_path = get_adb_path ();
+  GError *error = NULL;
+  g_autoptr(GSubprocess) proc = NULL;
+  AdbOperationResult *result = g_new0 (AdbOperationResult, 1);
+
+  if (!adb_path)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("ADB bulunamadı");
+      result->error_output = g_strdup ("ADB executable not found in PATH or tools directory");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      return;
+    }
+
+ proc = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, &error,
+                           adb_path, "-s", data->serial, "install", data->apk_path,
+                           NULL);
+
+  if (!proc)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Kurulum komutu çalıştırılamadı");
+      result->error_output = g_strdup (error->message);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_error_free (error);
+      return;
+    }
+
+  /* Wait for the process to complete */
+  if (!g_subprocess_wait_check (proc, cancellable, &error))
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Kurulum işlemi başarısız oldu");
+      result->error_output = g_strdup (error ? error->message : "Bilinmeyen hata");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_clear_error (&error);
+      return;
+    }
+
+  /* Check if installation was successful */
+  if (g_subprocess_get_exit_status (proc) == 0)
+    {
+      result->success = TRUE;
+      result->message = g_strdup ("Uygulama başarıyla kuruldu");
+    }
+  else
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Uygulama kurulamadı");
+      result->error_output = g_strdup_printf ("Kurulum işlemi başarısız oldu, çıkış kodu: %d", g_subprocess_get_exit_status (proc));
+    }
+
+  g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+}
+
+void
+adb_install_package_async (const gchar         *serial,
+                           const gchar         *apk_path,
+                           GCancellable        *cancellable,
+                           GAsyncReadyCallback  callback,
+                           gpointer             user_data)
+{
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+  InstallPackageData *data = g_new0 (InstallPackageData, 1);
+  data->serial = g_strdup (serial);
+  data->apk_path = g_strdup (apk_path);
+  g_task_set_task_data (task, data, (GDestroyNotify) install_package_data_free);
+  g_task_run_in_thread (task, adb_install_package_thread);
+  g_object_unref (task);
+}
+
+AdbOperationResult *
+adb_install_package_finish (GAsyncResult  *result,
+                            GError       **error)
+{
+  return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+/* --- Asenkron Uygulama Dondurma --- */
+
+typedef struct {
+ gchar *serial;
+  gchar *package_name;
+} FreezePackageData;
+
+static void
+freeze_package_data_free (FreezePackageData *data)
+{
+  g_free (data->serial);
+  g_free (data->package_name);
+  g_free (data);
+}
+
+static void
+adb_freeze_package_thread (GTask        *task,
+                           gpointer      source_object G_GNUC_UNUSED,
+                           gpointer      task_data,
+                           GCancellable *cancellable)
+{
+  FreezePackageData *data = task_data;
+  g_autofree gchar *adb_path = get_adb_path ();
+  GError *error = NULL;
+ g_autoptr(GSubprocess) proc = NULL;
+ AdbOperationResult *result = g_new0 (AdbOperationResult, 1);
+
+  if (!adb_path)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("ADB bulunamadı");
+      result->error_output = g_strdup ("ADB executable not found in PATH or tools directory");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      return;
+    }
+
+ proc = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, &error,
+                           adb_path, "-s", data->serial, "shell", "pm", "disable-user", data->package_name,
+                           NULL);
+
+  if (!proc)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Dondurma komutu çalıştırılamadı");
+      result->error_output = g_strdup (error->message);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_error_free (error);
+      return;
+    }
+
+  /* Wait for the process to complete */
+  if (!g_subprocess_wait_check (proc, cancellable, &error))
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Dondurma işlemi başarısız oldu");
+      result->error_output = g_strdup (error ? error->message : "Bilinmeyen hata");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_clear_error (&error);
+      return;
+    }
+
+  /* Check if freeze was successful */
+  if (g_subprocess_get_exit_status (proc) == 0)
+    {
+      result->success = TRUE;
+      result->message = g_strdup ("Uygulama başarıyla donduruldu");
+    }
+  else
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Uygulama dondurulamadı");
+      result->error_output = g_strdup_printf ("Dondurma işlemi başarısız oldu, çıkış kodu: %d", g_subprocess_get_exit_status (proc));
+    }
+
+  g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+}
+
+void
+adb_freeze_package_async (const gchar         *serial,
+                          const gchar         *package_name,
+                          GCancellable        *cancellable,
+                          GAsyncReadyCallback  callback,
+                          gpointer             user_data)
+{
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+  FreezePackageData *data = g_new0 (FreezePackageData, 1);
+  data->serial = g_strdup (serial);
+  data->package_name = g_strdup (package_name);
+  g_task_set_task_data (task, data, (GDestroyNotify) freeze_package_data_free);
+  g_task_run_in_thread (task, adb_freeze_package_thread);
+  g_object_unref (task);
+}
+
+AdbOperationResult *
+adb_freeze_package_finish (GAsyncResult *result,
+                           GError       **error)
+{
+  return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+/* --- Asenkron Uygulama Etkinleştirme --- */
+
+typedef struct {
+  gchar *serial;
+  gchar *package_name;
+} UnfreezePackageData;
+
+static void
+unfreeze_package_data_free (UnfreezePackageData *data)
+{
+  g_free (data->serial);
+  g_free (data->package_name);
+  g_free (data);
+}
+
+static void
+adb_unfreeze_package_thread (GTask        *task,
+                             gpointer      source_object G_GNUC_UNUSED,
+                             gpointer      task_data,
+                             GCancellable *cancellable)
+{
+  UnfreezePackageData *data = task_data;
+  g_autofree gchar *adb_path = get_adb_path ();
+  GError *error = NULL;
+  g_autoptr(GSubprocess) proc = NULL;
+  AdbOperationResult *result = g_new0 (AdbOperationResult, 1);
+
+  if (!adb_path)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("ADB bulunamadı");
+      result->error_output = g_strdup ("ADB executable not found in PATH or tools directory");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      return;
+    }
+
+ proc = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, &error,
+                           adb_path, "-s", data->serial, "shell", "pm", "enable", data->package_name,
+                           NULL);
+
+  if (!proc)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Etkinleştirme komutu çalıştırılamadı");
+      result->error_output = g_strdup (error->message);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_error_free (error);
+      return;
+    }
+
+  /* Wait for the process to complete */
+  if (!g_subprocess_wait_check (proc, cancellable, &error))
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Etkinleştirme işlemi başarısız oldu");
+      result->error_output = g_strdup (error ? error->message : "Bilinmeyen hata");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_clear_error (&error);
+      return;
+    }
+
+  /* Check if unfreeze was successful */
+  if (g_subprocess_get_exit_status (proc) == 0)
+    {
+      result->success = TRUE;
+      result->message = g_strdup ("Uygulama başarıyla açıldı");
+    }
+  else
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Uygulama açılamadı");
+      result->error_output = g_strdup_printf ("Etkinleştirme işlemi başarısız oldu, çıkış kodu: %d", g_subprocess_get_exit_status (proc));
+    }
+
+ g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+}
+
+void
+adb_unfreeze_package_async (const gchar         *serial,
+                            const gchar         *package_name,
+                            GCancellable        *cancellable,
+                            GAsyncReadyCallback  callback,
+                            gpointer             user_data)
+{
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+  UnfreezePackageData *data = g_new0 (UnfreezePackageData, 1);
+  data->serial = g_strdup (serial);
+  data->package_name = g_strdup (package_name);
+  g_task_set_task_data (task, data, (GDestroyNotify) unfreeze_package_data_free);
+  g_task_run_in_thread (task, adb_unfreeze_package_thread);
+  g_object_unref (task);
+}
+
+AdbOperationResult *
+adb_unfreeze_package_finish (GAsyncResult  *result,
+                             GError       **error)
+{
+  return g_task_propagate_pointer (G_TASK (result), error);
+}
+
+/* --- Asenkron Uygulama Veri Temizleme --- */
+
+typedef struct {
+  gchar *serial;
+  gchar *package_name;
+} ClearPackageDataData;
+
+static void
+clear_package_data_data_free (ClearPackageDataData *data)
+{
+  g_free (data->serial);
+  g_free (data->package_name);
+  g_free (data);
+}
+
+static void
+adb_clear_package_data_thread (GTask        *task,
+                               gpointer      source_object G_GNUC_UNUSED,
+                               gpointer      task_data,
+                               GCancellable *cancellable)
+{
+  ClearPackageDataData *data = task_data;
+  g_autofree gchar *adb_path = get_adb_path ();
+  GError *error = NULL;
+  g_autoptr(GSubprocess) proc = NULL;
+  AdbOperationResult *result = g_new0 (AdbOperationResult, 1);
+
+  if (!adb_path)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("ADB bulunamadı");
+      result->error_output = g_strdup ("ADB executable not found in PATH or tools directory");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      return;
+    }
+
+ proc = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, &error,
+                           adb_path, "-s", data->serial, "shell", "pm", "clear", data->package_name,
+                           NULL);
+
+  if (!proc)
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Veri temizleme komutu çalıştırılamadı");
+      result->error_output = g_strdup (error->message);
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_error_free (error);
+      return;
+    }
+
+  /* Wait for the process to complete */
+  if (!g_subprocess_wait_check (proc, cancellable, &error))
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Veri temizleme işlemi başarısız oldu");
+      result->error_output = g_strdup (error ? error->message : "Bilinmeyen hata");
+      g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+      g_clear_error (&error);
+      return;
+    }
+
+  /* Check if clear was successful */
+  if (g_subprocess_get_exit_status (proc) == 0)
+    {
+      result->success = TRUE;
+      result->message = g_strdup ("Uygulama verileri başarıyla temizlendi");
+    }
+  else
+    {
+      result->success = FALSE;
+      result->message = g_strdup ("Uygulama verileri temizlenemedi");
+      result->error_output = g_strdup_printf ("Veri temizleme işlemi başarısız oldu, çıkış kodu: %d", g_subprocess_get_exit_status (proc));
+    }
+
+  g_task_return_pointer (task, result, (GDestroyNotify) adb_operation_result_free);
+}
+
+void
+adb_clear_package_data_async (const gchar         *serial,
+                              const gchar         *package_name,
+                              GCancellable        *cancellable,
+                              GAsyncReadyCallback  callback,
+                              gpointer             user_data)
+{
+  GTask *task = g_task_new (NULL, cancellable, callback, user_data);
+  ClearPackageDataData *data = g_new0 (ClearPackageDataData, 1);
+  data->serial = g_strdup (serial);
+  data->package_name = g_strdup (package_name);
+  g_task_set_task_data (task, data, (GDestroyNotify) clear_package_data_data_free);
+  g_task_run_in_thread (task, adb_clear_package_data_thread);
+ g_object_unref (task);
+}
+
+AdbOperationResult *
+adb_clear_package_data_finish (GAsyncResult  *result,
+                               GError       **error)
 {
   return g_task_propagate_pointer (G_TASK (result), error);
 }

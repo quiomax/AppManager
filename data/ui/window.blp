@@ -2,407 +2,411 @@ using Gtk 4.0;
 using Adw 1;
 
 template $MainWindow: Adw.ApplicationWindow {
-  title: "Android Uygulama Yöneticisi";
+  title: _("Android Uygulama Yöneticisi");
   default-width: 700;
   default-height: 800;
 
-  content: Adw.ToolbarView {
-    [top]
-    Adw.HeaderBar {
-      [start]
-      Gtk.Button {
-        icon-name: "view-refresh-symbolic";
-        tooltip-text: "Listeyi yenile (Ctrl+R)";
-        action-name: "win.refresh";
-      }
-
-      [start]
-      Adw.SplitButton select_button {
-        icon-name: "edit-select-all-symbolic";
-        tooltip-text: "Bu kategorideki uygulamaları seç (Ctrl+A)";
-        action-name: "win.select-all";
-        menu-model: selection_menu;
-      }
-
-      [title]
-      Gtk.Box {
-        orientation: horizontal;
-        spacing: 6;
-
-        Gtk.Label {
-          label: "Cihaz:";
-
-          styles [
-            "heading",
-          ]
+  content: Adw.ToastOverlay toast_overlay {
+    child: Adw.ToolbarView {
+      [top]
+      Adw.HeaderBar {
+        [start]
+        Gtk.Button {
+          icon-name: "view-refresh-symbolic";
+          tooltip-text: _("Listeyi yenile (Ctrl+R)");
+          action-name: "win.refresh";
         }
 
-        Gtk.DropDown device_dropdown {
-          // Model kod tarafında doldurulacak
-          width-request: 150;
+        [start]
+        Adw.SplitButton select_button {
+          icon-name: "edit-select-all-symbolic";
+          tooltip-text: _("Bu kategorideki uygulamaları seç (Ctrl+A)");
+          dropdown-tooltip: _("Diğer seçenekler");
+          action-name: "win.select-all";
         }
-      }
 
-      [end]
-      Gtk.MenuButton {
-        icon-name: "open-menu-symbolic";
-        tooltip-text: "Ayarlar";
-        menu-model: primary_menu;
-      }
+        [title]
+        Gtk.Box {
+          orientation: horizontal;
+          spacing: 6;
 
-      [end]
-      Gtk.Button remove_button {
-        icon-name: "edit-delete-symbolic";
-        tooltip-text: "Seçili uygulamaları kaldır (Delete)";
-        sensitive: false;
-        action-name: "win.remove-apps";
+          Gtk.Label {
+            label: _("Cihaz:");
 
-        styles [
-          "destructive-action",
-        ]
-      }
-
-      [end]
-      Gtk.ToggleButton search_toggle {
-        icon-name: "edit-find-symbolic";
-        tooltip-text: "Ara (Ctrl+F)";
-        action-name: "win.search-toggle";
-      }
-    }
-
-    content: Gtk.Stack main_stack {
-      Gtk.StackPage {
-        name: "loading";
-
-        child: Adw.StatusPage {
-          title: "Cihaz Aranıyor...";
-
-          child: Gtk.Spinner {
-            spinning: true;
-            halign: center;
-            width-request: 32;
-            height-request: 32;
-          };
-        };
-      }
-
-      Gtk.StackPage {
-        name: "no-device";
-
-        child: Adw.StatusPage {
-          icon-name: "phone-symbolic";
-          title: "Cihaz Bulunamadı";
-          description: "USB hata ayıklamayı etkinleştir ve cihazı kablo ile bağla.\n\n<b>Ayarlar</b> → <b>Telefon hakkında</b> → <b>Derleme numarası</b>\n<i>5 defa dokun</i>.\n\nCihaz otomatik olarak tanınmazsa <b>Yenile</b> düğmesine tıklayarak yada <b>Ctrl+R</b> tuşlarına basarak cihazın algılanmasını sağla.";
-        };
-      }
-
-      Gtk.StackPage {
-        name: "unauthorized";
-
-        child: Adw.StatusPage {
-          icon-name: "dialog-password-symbolic";
-          title: "Cihaz Yetkilendirilmedi";
-          description: "Cihazda beliren USB hata ayıklama izni penceresini onayla.\n\nEğer pencere görünmüyorsa USB kablosunu çıkarıp tak veya ADB sunucusunu yeniden başlat.";
-        };
-      }
-
-      Gtk.StackPage {
-        name: "content";
-
-        child: Gtk.Box {
-          orientation: vertical;
-
-          styles [
-            "card",
-          ]
-
-          Gtk.StackSwitcher {
-            stack: content_stack;
-            halign: center;
-            margin-top: 6;
-            margin-bottom: 6;
+            styles [
+              "heading",
+            ]
           }
 
-          Gtk.SearchEntry search_entry {
-            halign: fill;
-            margin-start: 12;
-            margin-end: 12;
-            margin-bottom: 6;
-            placeholder-text: "Uygulama ara...";
-            visible: false;
-          }
-
-          Gtk.Box search_filters_box {
-            orientation: horizontal;
-            halign: fill;
-            spacing: 6;
-            margin-bottom: 6;
-            margin-start: 12;
-            margin-end: 12;
-            visible: false; // Varsayılan olarak gizli
-            Gtk.ToggleButton filter_app_name {
-              label: "Uygulama Adı";
-              active: true;
-            }
-
-            Gtk.ToggleButton filter_package_id {
-              label: "Paket Kimliği";
-              active: true;
-            }
-
-            Gtk.Box {
-              hexpand: true;
-            }
-
-            Gtk.Button filter_size {
-              sensitive: false; // Henüz uygulanmadı
-              child: Gtk.Box {
-                spacing: 6;
-
-                Gtk.Label {
-                  label: "Boyut";
-                }
-
-                Gtk.Image {
-                  icon-name: "view-sort-ascending-symbolic";
-                }
-              };
-            }
-
-            Gtk.Button filter_date {
-              label: "Tarih";
-              sensitive: false; // Henüz uygulanmadı
-            }
-          }
-
-          Gtk.DropDown sort_dropdown {
-            halign: center;
-            margin-bottom: 6;
+          Gtk.DropDown device_dropdown {
             // Model kod tarafında doldurulacak
-            // Görünürlük ayarlara bağlı olacak
+            width-request: 150;
           }
+        }
 
-          Gtk.Stack content_stack {
-            vexpand: true;
+        [end]
+        Gtk.MenuButton {
+          icon-name: "open-menu-symbolic";
+          tooltip-text: _("Ayarlar");
+          menu-model: primary_menu;
+        }
 
-            Gtk.StackPage {
-              name: "loading";
+        [end]
+        Adw.SplitButton remove_button {
+          icon-name: "edit-delete-symbolic";
+          tooltip-text: _("Seçili uygulamaları kaldır (Delete)");
+          dropdown-tooltip: _("Diğer seçenekler");
+          sensitive: false;
+          action-name: "win.remove-apps";
+          menu-model: remove_menu;
 
-              child: Adw.StatusPage {
-                title: "Uygulamalar Yükleniyor...";
+          styles [
+            "destructive-action",
+          ]
+        }
 
-                child: Gtk.Spinner {
-                  spinning: true;
-                  halign: center;
-                  width-request: 32;
-                  height-request: 32;
+        [end]
+        Gtk.ToggleButton search_toggle {
+          icon-name: "edit-find-symbolic";
+          tooltip-text: _("Ara (Ctrl+F)");
+          action-name: "win.search-toggle";
+        }
+      }
+
+      content: Gtk.Stack main_stack {
+        Gtk.StackPage {
+          name: "loading";
+
+          child: Adw.StatusPage {
+            title: _("Cihaz Aranıyor...");
+
+            child: Gtk.Spinner {
+              spinning: true;
+              halign: center;
+              width-request: 32;
+              height-request: 32;
+            };
+          };
+        }
+
+        Gtk.StackPage {
+          name: "no-device";
+
+          child: Adw.StatusPage {
+            icon-name: "phone-symbolic";
+            title: _("Cihaz Bulunamadı");
+            description: "USB hata ayıklamayı etkinleştir ve cihazı kablo ile bağla.\n\n<b>Ayarlar</b> → <b>Telefon hakkında</b> → <b>Derleme numarası</b>\n<i>5 defa dokun</i>.\n\nCihaz otomatik olarak tanınmazsa <b>Yenile</b> düğmesine tıklayarak yada <b>Ctrl+R</b> tuşlarına basarak cihazın algılanmasını sağla.";
+          };
+        }
+
+        Gtk.StackPage {
+          name: "unauthorized";
+
+          child: Adw.StatusPage {
+            icon-name: "dialog-password-symbolic";
+            title: _("Cihaz Yetkilendirilmedi");
+            description: _("Cihazda beliren USB hata ayıklama izni penceresini onayla.\n\nEğer pencere görünmüyorsa USB kablosunu çıkarıp tak veya ADB sunucusunu yeniden başlat.");
+          };
+        }
+
+        Gtk.StackPage {
+          name: "content";
+
+          child: Gtk.Box {
+            orientation: vertical;
+
+            styles [
+              "card",
+            ]
+
+            Gtk.StackSwitcher {
+              stack: content_stack;
+              halign: center;
+              margin-top: 6;
+              margin-bottom: 6;
+            }
+
+            Gtk.SearchEntry search_entry {
+              halign: fill;
+              margin-start: 12;
+              margin-end: 12;
+              margin-bottom: 6;
+              placeholder-text: _("Uygulama ara...");
+              visible: false;
+            }
+
+            Gtk.Box search_filters_box {
+              orientation: horizontal;
+              halign: fill;
+              spacing: 6;
+              margin-bottom: 6;
+              margin-start: 12;
+              margin-end: 12;
+              visible: false; // Varsayılan olarak gizli
+              Gtk.ToggleButton filter_app_name {
+                label: _("Uygulama Adı");
+                active: true;
+              }
+
+              Gtk.ToggleButton filter_package_id {
+                label: _("Paket Kimliği");
+                active: true;
+              }
+
+              Gtk.Box {
+                hexpand: true;
+              }
+
+              Gtk.Button filter_size {
+                sensitive: false; // Henüz uygulanmadı
+                child: Gtk.Box {
+                  spacing: 6;
+
+                  Gtk.Label {
+                    label: _("Boyut");
+                  }
+
+                  Gtk.Image {
+                    icon-name: "view-sort-ascending-symbolic";
+                  }
                 };
-              };
+              }
+
+              Gtk.Button filter_date {
+                label: _("Tarih");
+                sensitive: false; // Henüz uygulanmadı
+              }
             }
 
-            Gtk.StackPage {
-              name: "unknown";
-              title: "Bilinmeyen";
+            Gtk.DropDown sort_dropdown {
+              halign: center;
+              margin-bottom: 6;
+              // Model kod tarafında doldurulacak
+              // Görünürlük ayarlara bağlı olacak
+            }
 
-              child: Gtk.Stack unknown_stack {
-                Gtk.StackPage {
-                  name: "list";
+            Gtk.Stack content_stack {
+              vexpand: true;
 
-                  child: Gtk.ScrolledWindow {
-                    Gtk.ListBox unknown_list {
-                      selection-mode: none;
-                      show-separators: true;
+              Gtk.StackPage {
+                name: "loading";
+
+                child: Adw.StatusPage {
+                  title: _("Uygulamalar Yükleniyor...");
+
+                  child: Gtk.Spinner {
+                    spinning: true;
+                    halign: center;
+                    width-request: 32;
+                    height-request: 32;
+                  };
+                };
+              }
+
+              Gtk.StackPage {
+                name: "unknown";
+                title: _("Bilinmeyen");
+
+                child: Gtk.Stack unknown_stack {
+                  Gtk.StackPage {
+                    name: "list";
+
+                    child: Gtk.ScrolledWindow {
+                      Gtk.ListBox unknown_list {
+                        selection-mode: none;
+                        show-separators: true;
+
+                        styles [
+                          "rich-list",
+                        ]
+                      }
+                    };
+                  }
+
+                  Gtk.StackPage {
+                    name: "empty";
+
+                    child: Adw.StatusPage {
+                      icon-name: "dialog-question-symbolic";
+                      title: _("Bilinmeyen uygulama bulunamadı");
+                      description: _("Cihazda kategorize edilmemiş uygulama yok");
 
                       styles [
-                        "rich-list",
+                        "compact",
                       ]
-                    }
-                  };
-                }
+                    };
+                  }
+                };
+              }
 
-                Gtk.StackPage {
-                  name: "empty";
+              Gtk.StackPage {
+                name: "malicious";
+                title: _("Zararlı");
 
-                  child: Adw.StatusPage {
-                    icon-name: "dialog-question-symbolic";
-                    title: "Bilinmeyen uygulama bulunamadı";
-                    description: "Cihazda kategorize edilmemiş uygulama yok";
+                child: Gtk.Stack malicious_stack {
+                  Gtk.StackPage {
+                    name: "list";
 
-                    styles [
-                      "compact",
-                    ]
-                  };
-                }
-              };
-            }
+                    child: Gtk.ScrolledWindow {
+                      Gtk.ListBox malicious_list {
+                        selection-mode: none;
+                        show-separators: true;
 
-            Gtk.StackPage {
-              name: "malicious";
-              title: "Zararlı";
+                        styles [
+                          "rich-list",
+                        ]
+                      }
+                    };
+                  }
 
-              child: Gtk.Stack malicious_stack {
-                Gtk.StackPage {
-                  name: "list";
+                  Gtk.StackPage {
+                    name: "empty";
 
-                  child: Gtk.ScrolledWindow {
-                    Gtk.ListBox malicious_list {
-                      selection-mode: none;
-                      show-separators: true;
+                    child: Adw.StatusPage {
+                      icon-name: "security-high-symbolic";
+                      title: _("Zararlı Uygulama Bulunamadı");
+                      description: _("Cihazda zararlı olarak işaretlenmiş uygulama yok");
 
                       styles [
-                        "rich-list",
+                        "compact",
                       ]
-                    }
-                  };
-                }
+                    };
+                  }
+                };
+              }
 
-                Gtk.StackPage {
-                  name: "empty";
+              Gtk.StackPage {
+                name: "safe";
+                title: _("Güvenilen");
 
-                  child: Adw.StatusPage {
-                    icon-name: "security-high-symbolic";
-                    title: "Zararlı Uygulama Bulunamadı";
-                    description: "Cihazda zararlı olarak işaretlenmiş uygulama yok";
+                child: Gtk.Stack safe_stack {
+                  Gtk.StackPage {
+                    name: "list";
 
-                    styles [
-                      "compact",
-                    ]
-                  };
-                }
-              };
-            }
+                    child: Gtk.ScrolledWindow {
+                      Gtk.ListBox safe_list {
+                        selection-mode: none;
+                        show-separators: true;
 
-            Gtk.StackPage {
-              name: "safe";
-              title: "Güvenilen";
+                        styles [
+                          "rich-list",
+                        ]
+                      }
+                    };
+                  }
 
-              child: Gtk.Stack safe_stack {
-                Gtk.StackPage {
-                  name: "list";
+                  Gtk.StackPage {
+                    name: "empty";
 
-                  child: Gtk.ScrolledWindow {
-                    Gtk.ListBox safe_list {
-                      selection-mode: none;
-                      show-separators: true;
+                    child: Adw.StatusPage {
+                      icon-name: "security-medium-symbolic";
+                      title: _("Güvenli Uygulama Bulunamadı");
+                      description: _("Cihazda güvenli olarak işaretlenmiş uygulama yok");
 
                       styles [
-                        "rich-list",
+                        "compact",
                       ]
-                    }
-                  };
-                }
+                    };
+                  }
+                };
+              }
 
-                Gtk.StackPage {
-                  name: "empty";
+              Gtk.StackPage {
+                name: "all";
+                title: _("Tümü");
 
-                  child: Adw.StatusPage {
-                    icon-name: "security-medium-symbolic";
-                    title: "Güvenli Uygulama Bulunamadı";
-                    description: "Cihazda güvenli olarak işaretlenmiş uygulama yok";
+                child: Gtk.ScrolledWindow {
+                  Gtk.ListBox all_list {
+                    selection-mode: none;
+                    show-separators: true;
 
                     styles [
-                      "compact",
+                      "rich-list",
                     ]
-                  };
-                }
-              };
-            }
-
-            Gtk.StackPage {
-              name: "all";
-              title: "Tümü";
-
-              child: Gtk.ScrolledWindow {
-                Gtk.ListBox all_list {
-                  selection-mode: none;
-                  show-separators: true;
-
-                  styles [
-                    "rich-list",
-                  ]
-                }
-              };
-            }
-          }
-
-          Gtk.Box {
-            orientation: horizontal;
-            spacing: 12;
-            margin-top: 6;
-            margin-bottom: 6;
-            margin-start: 12;
-            margin-end: 12;
-
-            Gtk.Label selected_label {
-              label: "Seçili: 0";
-
-              styles [
-                "caption",
-              ]
-            }
-
-            Gtk.Separator {
-              orientation: vertical;
-            }
-
-            Gtk.Label malicious_label {
-              label: "Zararlı: 0";
-
-              styles [
-                "caption",
-                "error",
-              ]
-            }
-
-            Gtk.Separator {
-              orientation: vertical;
-            }
-
-            Gtk.Label safe_label {
-              label: "Güvenli: 0";
-
-              styles [
-                "caption",
-                "success",
-              ]
-            }
-
-            Gtk.Separator {
-              orientation: vertical;
-            }
-
-            Gtk.Label total_label {
-              label: "Toplam: 0";
-
-              styles [
-                "caption",
-              ]
+                  }
+                };
+              }
             }
 
             Gtk.Box {
-              hexpand: true;
-            } // Spacer
-            Gtk.LinkButton {
-              label: "Muha Aliss";
-              uri: "mailto:muhaaliss@pm.me";
+              orientation: horizontal;
+              spacing: 12;
+              margin-top: 6;
+              margin-bottom: 6;
+              margin-start: 12;
+              margin-end: 12;
+
+              Gtk.Label selected_label {
+                label: _("Seçili: 0");
+
+                styles [
+                  "caption",
+                ]
+              }
+
+              Gtk.Separator {
+                orientation: vertical;
+              }
+
+              Gtk.Label malicious_label {
+                label: _("Zararlı: 0");
+
+                styles [
+                  "caption",
+                  "error",
+                ]
+              }
+
+              Gtk.Separator {
+                orientation: vertical;
+              }
+
+              Gtk.Label safe_label {
+                label: _("Güvenli: 0");
+
+                styles [
+                  "caption",
+                  "success",
+                ]
+              }
+
+              Gtk.Separator {
+                orientation: vertical;
+              }
+
+              Gtk.Label total_label {
+                label: _("Toplam: 0");
+
+                styles [
+                  "caption",
+                ]
+              }
+
+              Gtk.Box {
+                hexpand: true;
+              } // Spacer
+              Gtk.LinkButton {
+                label: "Muha Aliss";
+                uri: "mailto:muhaaliss@pm.me";
+              }
             }
-          }
-        };
-      }
+          };
+        }
+      };
     };
   };
 }
 
-menu selection_menu {
-  item ("Herşeyi Seç (Ctrl+Shift+A)", "win.select-all-global")
+menu remove_menu {
+  item (_("Yedekle"), "win.backup-selected")
 }
 
 menu primary_menu {
-  item ("Yedekle", "win.backup")
-  item ("Ayarlar", "app.preferences")
-  item ("Hakkında", "app.about")
+  item (_("APK Yükle"), "", "win.install-apk")
+  item (_("Ayarlar"), "app.preferences")
+  item (_("Hakkında"), "app.about")
 
   section {
-    item ("Çıkış", "app.quit")
+    item (_("Çıkış"), "app.quit")
   }
 }
