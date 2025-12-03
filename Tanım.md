@@ -21,7 +21,7 @@
 - Seçili uygulamaları yedekleyip yada doğrudan kaldırma.
 - Uygulama isimleri, zararlı ve güvenli eşleme listeleri kullanıcının veri dizinindeki yerel metin dosyalarından okunur (`AppNames`, `MaliciousApps`, `SafeApps`).
   - Windows: `%appdata%/Local/Muha/AppManager/`
-  - GNU/Linux: `~/.local/share/Muha/AppManager/`
+  - GNU/Linux: `$XDG_DATA_HOME/Muha/AppManager/`
 - Toplu uygulama kurulumu: Yedeklenen APK'ları seçerek birden fazla uygulamayı aynı anda cihaza kurma. Kurulum sırası belirleme.
 - Uygulama dondurma: Uygulamaları kaldırmadan devre dışı bırakma (`pm disable-user`) ve yeniden etkinleştirme.
 - Uygulama izinleri yönetimi: Her uygulamanın izinlerini görüntüleme ve toplu izin verme/kaldırma.
@@ -147,11 +147,11 @@
 - Uygulama simgeleri öncelikle yerel simge dizininde aransın, yoksa adb üzerinden çekilen apk içinden ayıklansın.
 - Simge dosyaları "UygulamaKimliği.png" formatında saklanacak.
 - Program Simgeleri:
-  - Uygulamanın kendi simgeleri `%programfiles%/Muha/AppManager/icons/` klasöründe bulunur.
+  - Uygulamanın kendi simgeleri `icons` klasöründe bulunur.
 - APK Simgeleri (Önbellek):
   - Çekilen APK simgeleri kullanıcı veri dizininde saklanır:
     - Windows: `%appdata%/Local/Muha/AppManager/cache/icons`
-    - GNU/Linux: `~/.local/share/Muha/AppManager/cache/icons`
+    - GNU/Linux: `$XDG_DATA_HOME/Muha/AppManager/cache/icons`
 - Simge Çıkarma İşlemi (Teknik):
   1. `adb shell pm path <paket_adı>` komutu ile APK yolu bulunur.
   2. `adb pull <uzak_yol> <yerel_gecici_yol>` ile APK geçici bir dizine çekilir.
@@ -247,14 +247,14 @@
   - Programı bulamazsa Windows için
     - `%programfiles%/Muha/AppManager/tools/platform-tools/adb.exe` dizininde aransın.
   - Programı bulamazsa GNU Linux için
-    - `~/.local/share/Muha/AppManager/tools/platform-tools/adb` dizininde aransın.
+    - `$XDG_DATA_HOME/Muha/AppManager/tools/platform-tools/adb` dizininde aransın.
   - Suffix: `Gtk.Box` içinde `Gtk.Entry` (yol) ve `Gtk.Button` (Gözat).
 - AAPT2 Dizin Yolu `Adw.ActionRow`: Android Asset Packaging Tool 2 aracının bulunduğu dizin.
   - Varsayılan olarak sistem yolunda(environment path) aapt2 programını arasın.
   - Programı bulamazsa Windows için
     - `%programfiles%/Muha/AppManager/tools/build-tools/{VERSIONNUMBER}/aapt2.exe` dizininde aransın.
   - Programı bulamazsa GNU Linux için
-    - `~/.local/share/Muha/AppManager/tools/build-tools/{VERSIONNUMBER}/aapt2` dizininde aransın.
+    - `$XDG_DATA_HOME/Muha/AppManager/tools/build-tools/{VERSIONNUMBER}/aapt2` dizininde aransın.
   - Suffix: `Gtk.Box` içinde `Gtk.Entry` (yol) ve `Gtk.Button` (Gözat).
 
 #### Araç Durumu `Adw.PreferencesGroup`
@@ -304,7 +304,7 @@ Uygulama analiz özellikleri
 - Yedekleme ve veri yönetimi ayarları
 - APK Yedekleme Konumu `Adw.ActionRow`: APK dosyalarının kaydedileceği dizin
   - Suffix: `Gtk.Box` içinde `Gtk.Label` (seçili yol) ve `Gtk.Button` (Değiştir).
-  - Varsayılan: Windows `%userprofile%/Documents/Muha/AppManager/Backups/{model-GG-AA-YYYY}/` GNU/Linux `~/Documents/Muha/AppManager/Backups/{model-GG-AA-YYYY}/`
+  - Varsayılan: Windows `%userprofile%/Documents/Muha/AppManager/Backups/{model-GG-AA-YYYY}/` GNU/Linux `$XDG_DOCUMENTS_DIR/Muha/AppManager/Backups/{model-GG-AA-YYYY}/`
   - Dosya adı: `{uygulamaadı}.apk`
 - Veri Klasörünü Aç `Adw.ActionRow`: Uygulama verilerinin bulunduğu klasörü aç
   - Suffix: `Gtk.Button` (Klasörü Aç). Simge: `folder-open-symbolic`
@@ -323,7 +323,7 @@ Uygulama analiz özellikleri
   - Suffix: `Gtk.Button` (Klasörü Aç). Simge: `folder-open-symbolic`
   - Log dosyaları konumu:
     - Windows: `%appdata%/Local/Muha/AppManager/logs`
-    - GNU/Linux: `~/.local/share/Muha/AppManager/logs`
+    - GNU/Linux: `$XDG_DATA_HOME/Muha/AppManager/logs`
 - Logları Temizle `Adw.ActionRow`: Tüm log dosyalarını sil
   - Suffix: `Gtk.Button` (Temizle). Style: `destructive-action`
 
@@ -388,7 +388,8 @@ Uygulama analiz özellikleri
 
 ## ADB entegrasyonu
 - Program, öncelikle sistem ortam yollarında (environment path) ADB'nin varlığını kontrol etmeli.
-- Sistemde ADB bulunamazsa, `%programfiles%/Muha/AppManager/tools/platform-tools` dizinindeki ADB'yi kullanmalı.
+- Sistemde ADB bulunamazsa, windows için `%programfiles%/Muha/AppManager/tools/platform-tools` dizinindeki ADB'yi kullanmalı.
+- GNU Linux için `$XDG_DATA_HOME/Muha/AppManager/tools/platform-tools` dizinindeki ADB'yi kullanmalı.
 - Cihaz bağlantı durumu kontrol edilmeli ve kullanıcıya bilgi verilmeli (örneğin, "Cihaz bağlı değil", "ADB erişim izni gerekli").
 - Varsayılan olarak yalnızca kullanıcı tarafından yüklenen uygulamalar (`-3` bayrağı) listelenmeli.
 
